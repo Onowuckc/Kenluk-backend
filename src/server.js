@@ -1,5 +1,4 @@
 // server.js — fully ESM-compliant
-import './create-admin.js';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
