@@ -1,12 +1,12 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const dotenv = require('dotenv');
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
 // Import User model
-const User = require('./src/models/User');
+import User from './src/models/User.js';
 
 // Connect to MongoDB
 const connectDB = async () => {

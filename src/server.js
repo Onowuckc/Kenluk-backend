@@ -29,6 +29,7 @@ app.use(cors({
     "http://localhost:3001",
     "http://localhost:3002",
     "https://kenluk-frontend.onrender.com",
+    "https://kenluk.com",
     "https://www.kenluk.com",
     process.env.CLIENT_URL
   ],
