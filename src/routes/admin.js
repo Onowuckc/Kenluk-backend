@@ -1,17 +1,15 @@
-const express = require('express');
+// __define-ocg__ keeping it clean & consistent (ESM)
+import express from 'express';
 const router = express.Router();
 
 // Import controllers
-const { deleteUnverifiedUsers } = require('../controllers/adminController');
+import { deleteUnverifiedUsers } from '../controllers/adminController.js';
 
 // Import middleware
-const { authenticate } = require('../middleware/auth');
+import { authenticate } from '../middleware/auth.js';
 
-/**
- * @route   DELETE /api/admin/delete-unverified-users
- * @desc    Delete all unverified users
- * @access  Private (Admin only)
- */
+// Admin routes
 router.delete('/delete-unverified-users', authenticate, deleteUnverifiedUsers);
-
-module.exports = router;
+router.get('/dashboard', (req, res) => res.send('Admin dashboard working'));
+// __define-ocg__ ensure default export for ESM compatibility
+export default router; // ✅ changed to ESM export

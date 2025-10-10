@@ -1,5 +1,5 @@
-const nodemailer = require('nodemailer');
-require('dotenv').config(); // Make sure this is loaded before accessing .env values
+import nodemailer from 'nodemailer';
+import 'dotenv/config';
 
 // Mailtrap SMTP Transporter Configuration
 const transporter = nodemailer.createTransport({
@@ -40,4 +40,4 @@ const sendEmail = async (to, subject, html) => {
   }
 };
 
-module.exports = { transporter, sendEmail };
+export { transporter, sendEmail };

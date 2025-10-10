@@ -1,8 +1,8 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
 
 // Import controllers
-const {
+import {
   getProfile,
   updateProfile,
   changePassword,
@@ -11,11 +11,11 @@ const {
   getUserById,
   updateUserById,
   deleteUserById
-} = require('../controllers/userController');
+} from '../controllers/userController.js';
 
 // Import middleware
-const { authenticate, requireAdmin } = require('../middleware/auth');
-const { validateProfileUpdate } = require('../middleware/validation');
+import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { validateProfileUpdate } from '../middleware/validation.js';
 
 /**
  * @route   GET /api/users/profile
@@ -73,4 +73,4 @@ router.put('/:id', authenticate, requireAdmin, updateUserById);
  */
 router.delete('/:id', authenticate, requireAdmin, deleteUserById);
 
-module.exports = router;
+export default router; // ✅ changed to ESM export

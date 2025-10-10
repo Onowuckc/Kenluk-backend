@@ -1,5 +1,5 @@
-const { verifyToken } = require('../utils/generateToken');
-const User = require('../models/User');
+import { verifyToken } from '../utils/generateToken.js';
+import User from '../models/User.js';
 
 /**
  * Authentication middleware to verify JWT token
@@ -120,7 +120,7 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = {
+export {
   authenticate,
   optionalAuth,
   requireAdmin

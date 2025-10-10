@@ -1,8 +1,8 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
 
 // Import controllers
-const {
+import {
   register,
   login,
   verifyEmail,
@@ -11,19 +11,19 @@ const {
   resetPassword,
   logout,
   refreshToken
-} = require('../controllers/authController');
+} from '../controllers/authController.js';
 
 // Import middleware
-const {
+import {
   validateRegistration,
   validateLogin,
   validateEmailVerification,
   validateResendVerificationCode,
   validatePasswordResetRequest,
   validatePasswordReset
-} = require('../middleware/validation');
+} from '../middleware/validation.js';
 
-const { authenticate } = require('../middleware/auth');
+import { authenticate } from '../middleware/auth.js';
 
 /**
  * @route   POST /api/auth/register
@@ -81,4 +81,4 @@ router.post('/logout', authenticate, logout);
  */
 router.post('/refresh-token', refreshToken);
 
-module.exports = router;
+export default router; // ✅ changed to ESM export

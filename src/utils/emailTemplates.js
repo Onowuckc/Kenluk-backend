@@ -181,7 +181,7 @@ const generateWelcomeEmail = (name) => {
   `;
 };
 
-module.exports = {
+export {
   generateVerificationEmail,
   generatePasswordResetEmail,
   generateWelcomeEmail

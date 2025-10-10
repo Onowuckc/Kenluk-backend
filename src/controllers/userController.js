@@ -1,4 +1,4 @@
-const User = require('../models/User');
+import User from '../models/User.js';
 
 /**
  * Get current user profile
@@ -321,7 +321,7 @@ const deleteUserById = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   getProfile,
   updateProfile,
   changePassword,

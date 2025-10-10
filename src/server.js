@@ -1,35 +1,41 @@
-const express = require('express');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
-const dotenv = require('dotenv');
+// server.js — fully ESM-compliant
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
 // Import routes
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/user');
-const adminRoutes = require('./routes/admin');
+import authRoutes from './routes/auth.js';
+import userRoutes from './routes/user.js';
+import adminRoutes from './routes/admin.js'; // ✅ changed to ESM import
 
 // Import middleware
-const errorHandler = require('./middleware/errorHandler');
+import errorHandler from './middleware/errorHandler.js';
 
 // Import database connection
-const connectDB = require('./config/database');
+import './config/database.js';
 
 // Initialize Express app
 const app = express();
 
-// Connect to MongoDB
-connectDB();
-
 // Middleware
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", process.env.CLIENT_URL],
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "https://kenluk-frontend.onrender.com",
+    process.env.CLIENT_URL
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
@@ -59,11 +65,11 @@ app.use('*', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
+  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
 });
 
-module.exports = app;
+export default app;

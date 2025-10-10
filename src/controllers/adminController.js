@@ -1,4 +1,4 @@
-const User = require('../models/User');
+import User from '../models/User.js';
 
 /**
  * Delete unverified users (admin only)
@@ -58,7 +58,7 @@ const deleteAllUsers = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   deleteUnverifiedUsers,
   deleteAllUsers
 };

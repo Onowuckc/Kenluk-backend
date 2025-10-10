@@ -1,4 +1,4 @@
-const { body, validationResult } = require('express-validator');
+import { body, validationResult } from 'express-validator';
 
 /**
  * Handle validation errors
@@ -169,7 +169,7 @@ const validateProfileUpdate = [
   handleValidationErrors
 ];
 
-module.exports = {
+export {
   handleValidationErrors,
   validateRegistration,
   validateLogin,

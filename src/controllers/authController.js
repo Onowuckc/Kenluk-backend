@@ -1,8 +1,8 @@
-const crypto = require('crypto');
-const User = require('../models/User');
-const { generateAuthTokens } = require('../utils/generateToken');
-const { sendEmail } = require('../config/mailer');
-const { generateVerificationEmail, generatePasswordResetEmail, generateWelcomeEmail } = require('../utils/emailTemplates');
+import crypto from 'crypto';
+import User from '../models/User.js';
+import { generateAuthTokens } from '../utils/generateToken.js';
+import { sendEmail } from '../config/mailer.js';
+import { generateVerificationEmail, generatePasswordResetEmail, generateWelcomeEmail } from '../utils/emailTemplates.js';
 
 /**
  * Register a new user
@@ -423,7 +423,7 @@ const refreshToken = async (req, res) => {
     }
 
     // Verify refresh token
-    const { verifyToken } = require('../utils/generateToken');
+    const { verifyToken } = await import('../utils/generateToken.js');
     const decoded = verifyToken(refreshToken, 'refresh');
 
     // Find user
@@ -436,7 +436,7 @@ const refreshToken = async (req, res) => {
     }
 
     // Generate new access token
-    const { generateToken } = require('../utils/generateToken');
+    const { generateToken } = await import('../utils/generateToken.js');
     const accessToken = generateToken(user._id, user.email, 'access');
 
     // Set new access token cookie
@@ -471,7 +471,7 @@ const refreshToken = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   register,
   login,
   verifyEmail,
