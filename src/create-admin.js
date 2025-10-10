@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Adjust path based on your Render project structure
-import User from './src/models/User.js';
+import User from './models/User.js';
 
 // Connect to MongoDB Atlas
 const connectDB = async () => {
