@@ -2,7 +2,7 @@
   "name": "kenluk-backend",
   "version": "1.0.0",
   "description": "Backend API for Kenluk application with authentication system",
-  
+  "type": "module",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

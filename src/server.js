@@ -1,21 +1,21 @@
-const express = require('express');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
-const dotenv = require('dotenv');
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
 // Import routes
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/user');
-const adminRoutes = require('./routes/admin');
+import authRoutes from './routes/auth.js';
+import userRoutes from './routes/user.js';
+import adminRoutes from './routes/admin.js';
 
 // Import middleware
-const errorHandler = require('./middleware/errorHandler');
+import errorHandler from './middleware/errorHandler.js';
 
 // Import database connection
-const connectDB = require('./config/database');
+import connectDB from './config/database.js';
 
 // Initialize Express app
 const app = express();
@@ -66,4 +66,4 @@ app.listen(PORT, () => {
   console.log(`Environment: ${process.env.NODE_ENV}`);
 });
 
-module.exports = app;
+export default app;

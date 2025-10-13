@@ -1,16 +1,8 @@
-# Kenluk Backend — Pending Tasks (Demo Prep)
+# TODO: Convert server.js to ESM
 
-## Phase 7: Testing & Setup
-- [ ] Test server startup and confirm MongoDB connection
-- [ ] Verify user registration and login via Postman
-- [ ] Ensure OTP verification and password reset via Mailtrap
-
-## Phase 8: Integration
-- [x] Enable CORS to allow requests from React frontend (localhost:5173)
-- [x] Connect signup and login modals from frontend to backend routes
-- [x] Test successful login and signup flow end-to-end
-
-## Phase 9: Deployment (Demo)
-- [ ] Set environment variables for Mailtrap, JWT_SECRET, and Mongo URI
-- [ ] Prepare for domain deployment (Render or Railway)
-- [ ] Deploy backend API base URL and test connectivity from frontend
+## Steps to Complete
+- [x] Update server.js imports from require() to import statements
+- [x] Update server.js exports from module.exports to export default
+- [x] Convert User.js model to ESM
+- [x] Convert database.js config to ESM
+- [x] Test the server to ensure it runs without errors
