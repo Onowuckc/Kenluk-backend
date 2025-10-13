@@ -25,10 +25,6 @@ const createAdmin = async () => {
     const existingAdmin = await User.findOne({ isAdmin: true });
     if (existingAdmin) {
       console.log('Admin user already exists:', existingAdmin.email);
-      // Update password to ensure it's correct
-      existingAdmin.password = process.env.ADMIN_PASSWORD || 'admin123';
-      await existingAdmin.save();
-      console.log('Admin password updated.');
       return;
     }
 

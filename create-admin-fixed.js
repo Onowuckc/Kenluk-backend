@@ -19,24 +19,33 @@ const connectDB = async () => {
   }
 };
 
+const hashPassword = async (password) => {
+  const saltRounds = 12;
+  return await bcrypt.hash(password, saltRounds);
+};
+
 const createAdmin = async () => {
   try {
     // Check if admin already exists
     const existingAdmin = await User.findOne({ isAdmin: true });
     if (existingAdmin) {
       console.log('Admin user already exists:', existingAdmin.email);
-      // Update password to ensure it's correct
-      existingAdmin.password = process.env.ADMIN_PASSWORD || 'admin123';
+      // Update password with proper hashing
+      const hashedPassword = await hashPassword(process.env.ADMIN_PASSWORD || 'admin123');
+      existingAdmin.password = hashedPassword;
       await existingAdmin.save();
-      console.log('Admin password updated.');
+      console.log('Admin password updated and hashed.');
       return;
     }
 
     // Create admin user
+    const plainPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const hashedPassword = await hashPassword(plainPassword);
+
     const adminData = {
       name: 'Admin User',
-      email: process.env.ADMIN_EMAIL || 'admin@kenluk.com',
-      password: process.env.ADMIN_PASSWORD || 'admin123',
+      email: process.env.ADMIN_EMAIL || 'admin@kenlukapp.com',
+      password: hashedPassword,
       isAdmin: true,
       isVerified: true
     };
@@ -46,7 +55,7 @@ const createAdmin = async () => {
 
     console.log('Admin user created successfully!');
     console.log('Email:', adminData.email);
-    console.log('Password:', adminData.password);
+    console.log('Password:', plainPassword);
     console.log('Please change the password after first login.');
 
   } catch (error) {

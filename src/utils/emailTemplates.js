@@ -58,6 +58,7 @@ const generateVerificationEmail = (name, otpCode) => {
         </div>
         <div class="footer">
           <p>&copy; ${new Date().getFullYear()} Kenluk. All rights reserved.</p>
+          <p>Contact us: Info@kenluk.com | +234 708 832 9998</p>
         </div>
       </div>
     </body>
@@ -121,6 +122,7 @@ const generatePasswordResetEmail = (name, resetUrl) => {
         </div>
         <div class="footer">
           <p>&copy; ${new Date().getFullYear()} Kenluk. All rights reserved.</p>
+          <p>Contact us: Info@kenluk.com | +234 708 832 9998</p>
         </div>
       </div>
     </body>
@@ -174,6 +176,7 @@ const generateWelcomeEmail = (name) => {
         </div>
         <div class="footer">
           <p>&copy; ${new Date().getFullYear()} Kenluk. All rights reserved.</p>
+          <p>Contact us: Info@kenluk.com | +234 708 832 9998</p>
         </div>
       </div>
     </body>
