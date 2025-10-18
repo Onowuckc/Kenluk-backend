@@ -407,6 +407,90 @@ const logout = (req, res) => {
 };
 
 /**
+ * Admin login
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const adminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find user and include password for comparison
+    const user = await User.findOne({ email }).select('+password');
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Check if user is admin
+    if (!user.isAdmin) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access denied. Admin privileges required.'
+      });
+    }
+
+    // Check password
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Generate tokens
+    const tokens = generateAuthTokens(user._id, user.email);
+
+    // Set cookies
+    res.cookie('accessToken', tokens.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Admin login successful',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          isVerified: user.isVerified,
+          role: 'admin'
+        },
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during admin login'
+    });
+  }
+};
+
+/**
  * Refresh access token
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -474,6 +558,7 @@ const refreshToken = async (req, res) => {
 export {
   register,
   login,
+  adminLogin,
   verifyEmail,
   resendVerificationCode,
   requestPasswordReset,

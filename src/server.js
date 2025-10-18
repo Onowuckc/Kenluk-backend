@@ -28,7 +28,8 @@ app.use(cors({
   origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", process.env.CLIENT_URL, "https://kenluk-frontend.up.railway.app", "https://www.kenluk.com"],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

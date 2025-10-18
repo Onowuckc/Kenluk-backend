@@ -5,6 +5,7 @@ const router = express.Router();
 import {
   register,
   login,
+  adminLogin,
   verifyEmail,
   resendVerificationCode,
   requestPasswordReset,
@@ -80,5 +81,12 @@ router.post('/logout', authenticate, logout);
  * @access  Public
  */
 router.post('/refresh-token', refreshToken);
+
+/**
+ * @route   POST /api/auth/admin/login
+ * @desc    Admin login
+ * @access  Public
+ */
+router.post('/admin/login', validateLogin, adminLogin);
 
 export default router; // ✅ changed to ESM export
