@@ -26,7 +26,7 @@ const createAdmin = async () => {
     if (existingAdmin) {
       console.log('Admin user already exists:', existingAdmin.email);
       // Update password to ensure it's correct
-      existingAdmin.password = process.env.ADMIN_PASSWORD || 'admin123';
+      existingAdmin.password = process.env.REACT_APP_ADMIN_PASSWORD || 'Admin123!';
       await existingAdmin.save();
       console.log('Admin password updated.');
       return;
@@ -35,8 +35,8 @@ const createAdmin = async () => {
     // Create admin user
     const adminData = {
       name: 'Admin User',
-      email: process.env.ADMIN_EMAIL || 'admin@kenluk.com',
-      password: process.env.ADMIN_PASSWORD || 'admin123',
+      email: process.env.REACT_APP_ADMIN_EMAIL || 'admin@kenlukapp.com',
+      password: process.env.REACT_APP_ADMIN_PASSWORD || 'Admin123!',
       isAdmin: true,
       isVerified: true
     };

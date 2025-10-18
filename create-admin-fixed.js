@@ -31,7 +31,7 @@ const createAdmin = async () => {
     if (existingAdmin) {
       console.log('Admin user already exists:', existingAdmin.email);
       // Update password with proper hashing
-      const hashedPassword = await hashPassword(process.env.ADMIN_PASSWORD || 'admin123');
+      const hashedPassword = await hashPassword(process.env.REACT_APP_ADMIN_PASSWORD || 'Admin123!');
       existingAdmin.password = hashedPassword;
       await existingAdmin.save();
       console.log('Admin password updated and hashed.');
@@ -39,12 +39,12 @@ const createAdmin = async () => {
     }
 
     // Create admin user
-    const plainPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const plainPassword = process.env.REACT_APP_ADMIN_PASSWORD || 'Admin123!';
     const hashedPassword = await hashPassword(plainPassword);
 
     const adminData = {
       name: 'Admin User',
-      email: process.env.ADMIN_EMAIL || 'admin@kenlukapp.com',
+      email: process.env.REACT_APP_ADMIN_EMAIL || 'admin@kenlukapp.com',
       password: hashedPassword,
       isAdmin: true,
       isVerified: true

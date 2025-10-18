@@ -31,8 +31,8 @@ const createAdmin = async () => {
     // Create admin user
     const adminData = {
       name: 'Admin User',
-      email: process.env.ADMIN_EMAIL || 'admin@kenluk.com',
-      password: process.env.ADMIN_PASSWORD || 'admin123',
+      email: process.env.REACT_APP_ADMIN_EMAIL || 'admin@kenlukapp.com',
+      password: process.env.REACT_APP_ADMIN_PASSWORD || 'Admin123!',
       isAdmin: true,
       isVerified: true
     };
