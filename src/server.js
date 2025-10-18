@@ -25,7 +25,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", process.env.CLIENT_URL],
+  origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", process.env.CLIENT_URL, "https://kenluk-frontend.up.railway.app", "https://www.kenluk.com"],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
