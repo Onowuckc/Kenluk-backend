@@ -420,7 +420,11 @@ const adminLogin = async (req, res) => {
     const timestamp = new Date().toISOString();
     const logEntry = `[${timestamp}] ${message}\n`;
     console.log(message);
-    fs.appendFileSync(logFile, logEntry);
+    try {
+      fs.appendFileSync(logFile, logEntry);
+    } catch (error) {
+      console.error(`Failed to write to log file: ${error.message}`);
+    }
   };
 
   try {

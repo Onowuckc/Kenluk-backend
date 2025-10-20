@@ -2,9 +2,18 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
 // Load environment variables
 dotenv.config();
+
+// Ensure logs directory exists
+const logsDir = path.join(process.cwd(), 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
+  console.log('📁 Created logs directory');
+}
 
 // Import routes
 import authRoutes from './routes/auth.js';
