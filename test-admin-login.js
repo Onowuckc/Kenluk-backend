@@ -1,59 +1,78 @@
-import axios from 'axios';
+import fetch from 'node-fetch';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://kenluk-backend-production.up.railway.app/api';
+const API_BASE = 'https://kenluk-backend-production.up.railway.app/api';
 
-const testAdminLogin = async () => {
+async function testAdminLogin() {
+  console.log('🧪 Testing Admin Login Endpoint...\n');
+
+  const payload = {
+    email: 'admin@kenlukapp.com',
+    password: 'Admin123!'
+  };
+
   try {
-    console.log('🧪 Testing admin login...\n');
+    console.log('📤 Sending POST request to /api/auth/admin/login');
+    console.log('📋 Payload:', JSON.stringify(payload, null, 2));
 
-    const loginData = {
-      email: 'admin@kenlukapp.com',
-      password: 'Admin123!'
-    };
-
-    console.log('📤 Sending login request to:', `${API_BASE_URL}/auth/admin/login`);
-    console.log('📧 Email:', loginData.email);
-    console.log('🔒 Password:', loginData.password.replace(/./g, '*'));
-
-    const response = await axios.post(`${API_BASE_URL}/auth/admin/login`, loginData, {
-      withCredentials: true,
+    const response = await fetch(`${API_BASE}/auth/admin/login`, {
+      method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
     });
 
-    console.log('\n✅ Login successful!');
-    console.log('📊 Response status:', response.status);
-    console.log('📋 Response data:');
-    console.log(JSON.stringify(response.data, null, 2));
+    console.log(`📊 Response Status: ${response.status} ${response.statusText}`);
 
-    // Check if tokens are present
-    if (response.data.data?.tokens) {
-      console.log('\n🔑 Tokens received:');
-      console.log('- Access Token:', response.data.data.tokens.accessToken ? '✅ Present' : '❌ Missing');
-      console.log('- Refresh Token:', response.data.data.tokens.refreshToken ? '✅ Present' : '❌ Missing');
-    }
+    const responseData = await response.json();
+    console.log('📋 Response Data:');
+    console.log(JSON.stringify(responseData, null, 2));
 
-    // Check user data
-    if (response.data.data?.user) {
-      console.log('\n👤 User data:');
-      console.log('- ID:', response.data.data.user.id);
-      console.log('- Name:', response.data.data.user.name);
-      console.log('- Email:', response.data.data.user.email);
-      console.log('- Role:', response.data.data.user.role);
-      console.log('- Verified:', response.data.data.user.isVerified);
+    if (response.ok && responseData.success) {
+      console.log('\n✅ Admin login test PASSED!');
+      console.log('🎉 Admin can successfully log in');
+    } else {
+      console.log('\n❌ Admin login test FAILED!');
+      console.log('💥 Error:', responseData.message || 'Unknown error');
     }
 
   } catch (error) {
-    console.log('\n❌ Login failed!');
-    console.log('📊 Error status:', error.response?.status);
-    console.log('📋 Error message:', error.response?.data?.message || error.message);
-
-    if (error.response?.data?.errors) {
-      console.log('🔍 Validation errors:', error.response.data.errors);
-    }
+    console.error('\n💥 Test failed with exception:', error.message);
   }
-};
+}
 
-// Run the test
-testAdminLogin();
+// Test health endpoint first
+async function testHealth() {
+  console.log('🏥 Testing Health Endpoint...\n');
+
+  try {
+    const response = await fetch(`${API_BASE}/health`);
+    const data = await response.json();
+
+    console.log(`📊 Health Status: ${response.status}`);
+    console.log('📋 Health Response:', JSON.stringify(data, null, 2));
+
+    if (response.ok && data.success) {
+      console.log('✅ Health check passed\n');
+      return true;
+    } else {
+      console.log('❌ Health check failed\n');
+      return false;
+    }
+  } catch (error) {
+    console.error('💥 Health check error:', error.message);
+    return false;
+  }
+}
+
+// Run tests
+async function runTests() {
+  const healthOk = await testHealth();
+  if (healthOk) {
+    await testAdminLogin();
+  } else {
+    console.log('⏭️  Skipping admin login test due to health check failure');
+  }
+}
+
+runTests();

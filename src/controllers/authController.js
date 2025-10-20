@@ -412,21 +412,38 @@ const logout = (req, res) => {
  * @param {Object} res - Express response object
  */
 const adminLogin = async (req, res) => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const logFile = path.join(process.cwd(), 'logs', 'admin-login.log');
+  const logMessage = (message) => {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${message}\n`;
+    console.log(message);
+    fs.appendFileSync(logFile, logEntry);
+  };
+
   try {
     const { email, password } = req.body;
+
+    logMessage(`🔐 Admin login attempt - Email: ${email}`);
 
     // Find user and include password for comparison
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
+      logMessage(`❌ Admin login failed - User not found: ${email}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
       });
     }
 
+    logMessage(`✅ User found: ${user.email}, isAdmin: ${user.isAdmin}, isVerified: ${user.isVerified}`);
+
     // Check if user is admin
     if (!user.isAdmin) {
+      logMessage(`❌ Admin login failed - User is not admin: ${email}`);
       return res.status(401).json({
         success: false,
         message: 'Access denied. Admin privileges required.'
@@ -436,11 +453,14 @@ const adminLogin = async (req, res) => {
     // Check password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
+      logMessage(`❌ Admin login failed - Invalid password for: ${email}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
       });
     }
+
+    logMessage(`✅ Password verified for admin: ${email}`);
 
     // Update last login
     user.lastLogin = new Date();
@@ -464,6 +484,8 @@ const adminLogin = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
+    logMessage(`🎉 Admin login successful for: ${email}`);
+
     res.status(200).json({
       success: true,
       message: 'Admin login successful',
@@ -482,6 +504,7 @@ const adminLogin = async (req, res) => {
       }
     });
   } catch (error) {
+    logMessage(`💥 Admin login error: ${error.message}`);
     console.error('Admin login error:', error);
     res.status(500).json({
       success: false,

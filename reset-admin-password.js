@@ -1,16 +1,7 @@
 import mongoose from 'mongoose';
 import User from './src/models/User.js';
 
-const connectDB = async () => {
-  try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/kenluk';
-    await mongoose.connect(mongoUri);
-    console.log('Connected to MongoDB');
-  } catch (error) {
-    console.error('Connection error:', error);
-    process.exit(1);
-  }
-};
+import connectDB from './src/config/database.js';
 
 const resetAdminPassword = async () => {
   try {
