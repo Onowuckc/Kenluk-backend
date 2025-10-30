@@ -582,6 +582,97 @@ const refreshToken = async (req, res) => {
   }
 };
 
+// In-memory cache for USDC-NGN rate
+let rateCache = {
+  rate: null,
+  timestamp: null,
+  ttl: 30 * 1000 // 30 seconds
+};
+
+/**
+ * Fetch USDC to NGN rate with caching and retry logic
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getUsdcNgnRate = async (req, res) => {
+  try {
+    // Check cache first
+    const now = Date.now();
+    if (rateCache.rate && rateCache.timestamp && (now - rateCache.timestamp) < rateCache.ttl) {
+      console.log('📊 Returning cached USDC-NGN rate');
+      return res.status(200).json({
+        success: true,
+        rate: rateCache.rate,
+        source: rateCache.source,
+        lastUpdated: new Date(rateCache.timestamp).toISOString()
+      });
+    }
+
+    let rate = null;
+    let source = null;
+
+    // Try CoinGecko first
+    try {
+      console.log('🌐 Fetching from CoinGecko API');
+      const coingeckoResponse = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=usd-coin&vs_currencies=ngn');
+      if (coingeckoResponse.ok) {
+        const data = await coingeckoResponse.json();
+        rate = data['usd-coin']?.ngn;
+        source = 'CoinGecko';
+      }
+    } catch (error) {
+      console.warn('⚠️ CoinGecko API failed:', error.message);
+    }
+
+    // Fallback to Exchangerate.host if CoinGecko failed
+    if (!rate) {
+      try {
+        console.log('🌐 Fetching from Exchangerate.host API');
+        const exchangerateResponse = await fetch('https://api.exchangerate.host/convert?from=USDC&to=NGN');
+        if (exchangerateResponse.ok) {
+          const data = await exchangerateResponse.json();
+          rate = data.result;
+          source = 'Exchangerate.host';
+        }
+      } catch (error) {
+        console.warn('⚠️ Exchangerate.host API failed:', error.message);
+      }
+    }
+
+    if (!rate) {
+      return res.status(500).json({
+        success: false,
+        message: 'Unable to fetch exchange rate from any source'
+      });
+    }
+
+    // Apply +25 markup
+    const finalRate = rate + 25;
+
+    // Update cache
+    rateCache = {
+      rate: finalRate,
+      source,
+      timestamp: now
+    };
+
+    console.log(`💰 USDC-NGN rate fetched: ${finalRate} from ${source}`);
+
+    res.status(200).json({
+      success: true,
+      rate: finalRate,
+      source,
+      lastUpdated: new Date(now).toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error fetching USDC-NGN rate:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching exchange rate'
+    });
+  }
+};
+
 export {
   register,
   login,
@@ -591,5 +682,6 @@ export {
   requestPasswordReset,
   resetPassword,
   logout,
-  refreshToken
+  refreshToken,
+  getUsdcNgnRate
 };

@@ -11,7 +11,8 @@ import {
   requestPasswordReset,
   resetPassword,
   logout,
-  refreshToken
+  refreshToken,
+  getUsdcNgnRate
 } from '../controllers/authController.js';
 
 // Import middleware
@@ -88,5 +89,12 @@ router.post('/refresh-token', refreshToken);
  * @access  Public
  */
 router.post('/admin/login', validateLogin, adminLogin);
+
+/**
+ * @route   GET /api/auth/usdc-ngn
+ * @desc    Get USDC to NGN exchange rate
+ * @access  Public
+ */
+router.get('/usdc-ngn', getUsdcNgnRate);
 
 export default router; // ✅ changed to ESM export

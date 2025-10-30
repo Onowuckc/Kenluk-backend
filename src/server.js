@@ -19,6 +19,7 @@ if (!fs.existsSync(logsDir)) {
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import adminRoutes from './routes/admin.js';
+import ratesRoutes from './routes/rates.js';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
@@ -48,6 +49,7 @@ app.use(cookieParser());
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/rates', ratesRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
