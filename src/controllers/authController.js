@@ -518,6 +518,88 @@ const adminLogin = async (req, res) => {
 };
 
 /**
+ * Verify authentication token and return user data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const verify = async (req, res) => {
+  try {
+    // Get token from header or cookie
+    let token;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies && req.cookies.accessToken) {
+      token = req.cookies.accessToken;
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access token required'
+      });
+    }
+
+    // Verify token
+    const { verifyToken } = await import('../utils/generateToken.js');
+    const decoded = verifyToken(token, 'access');
+
+    // Find user
+    const user = await User.findById(decoded.userId).select('-password');
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token - user not found'
+      });
+    }
+
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account not verified'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Token verified successfully',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.isAdmin ? 'admin' : 'user',
+          isVerified: user.isVerified,
+          approved: user.approved,
+          documentsSubmitted: user.documentsSubmitted
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Token verification error:', error);
+
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token expired'
+      });
+    }
+
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error during token verification'
+    });
+  }
+};
+
+/**
  * Refresh access token
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -682,6 +764,7 @@ export {
   requestPasswordReset,
   resetPassword,
   logout,
+  verify,
   refreshToken,
   getUsdcNgnRate
 };

@@ -11,6 +11,7 @@ import {
   requestPasswordReset,
   resetPassword,
   logout,
+  verify,
   refreshToken,
   getUsdcNgnRate
 } from '../controllers/authController.js';
@@ -96,5 +97,12 @@ router.post('/admin/login', validateLogin, adminLogin);
  * @access  Public
  */
 router.get('/usdc-ngn', getUsdcNgnRate);
+
+/**
+ * @route   GET /api/auth/verify
+ * @desc    Verify authentication token and return user data
+ * @access  Public (for frontend token verification)
+ */
+router.get('/verify', verify);
 
 export default router; // ✅ changed to ESM export
