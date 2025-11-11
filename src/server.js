@@ -20,6 +20,8 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import adminRoutes from './routes/admin.js';
 import ratesRoutes from './routes/rates.js';
+import kycRoutes from './routes/kyc.js';
+import paymentRoutes from './routes/payments.js';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
@@ -50,6 +52,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/rates', ratesRoutes);
+app.use('/api/kyc', kycRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -65,18 +69,25 @@ const logRoutes = () => {
   console.log('\n📋 Registered Routes:');
   app._router.stack.forEach((middleware) => {
     if (middleware.route) {
-      console.log(`  ${Object.keys(middleware.route.methods).join(', ').toUpperCase()} ${middleware.route.path}`);
-    } else if (middleware.name === 'router') {
+      const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
+      console.log(`  ${methods} ${middleware.route.path}`);
+    } else if (middleware.name === 'router' && middleware.handle.stack) {
+      const basePath = middleware.regexp.source
+        .replace('^\\', '')
+        .replace('\\/?(?=\\/|$)', '')
+        .replace(/\\\//g, '/')
+        .replace(/\$$/, '');
       middleware.handle.stack.forEach((handler) => {
         if (handler.route) {
           const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
-          console.log(`  ${methods} /api/auth${handler.route.path}`);
+          console.log(`  ${methods} ${basePath}${handler.route.path}`);
         }
       });
     }
   });
   console.log('');
 };
+
 
 // Error handling middleware
 app.use(errorHandler);
