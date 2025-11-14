@@ -19,54 +19,39 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const fetchFromBybit = async () => {
   try {
     // Bybit API for USDT spot price (USDT is pegged to USD ≈ 1:1)
-    const response = await axios.get('https://api.bybit.com/v5/market/tickers?category=spot&symbol=USDTUSDC', {
+    const response = await axios.get('https://api.bybit.com/v5/market/tickers?category=spot&symbol=USDTUSD', {
       timeout: 10000, // 10 second timeout
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       }
     });
-    const usdtPrice = parseFloat(response.data.result.list[0].lastPrice);
-    // Since USDT ≈ USD, we use USDT price as USD equivalent
-    // For NGN, we need to get USD to NGN rate. Since Bybit doesn't provide NGN directly,
-    // we'll use a reliable fallback for USD to NGN conversion
-    const usdToNgnResponse = await axios.get('https://api.exchangerate-api.com/v4/latest/USD', {
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-    const usdToNgnRate = usdToNgnResponse.data.rates.NGN;
+
+    // Defensive checks
+    if (!response.data || !response.data.result || !response.data.result.list || response.data.result.list.length === 0) {
+      throw new Error('Bybit API returned no ticker data for USDTUSD');
+    }
+
+    const lastPrice = response.data.result.list[0].lastPrice;
+    const usdtPrice = parseFloat(lastPrice);
+    if (isNaN(usdtPrice) || usdtPrice <= 0) {
+      throw new Error('Invalid lastPrice from Bybit API');
+    }
+
     // Use varOcg as a multiplier for additional calculation (e.g., for fees or adjustments)
     const varOcg = 1.0; // Default multiplier, can be adjusted based on business logic
-    const rate = usdtPrice * usdToNgnRate * varOcg;
+    const rate = usdtPrice * varOcg;
     if (isNaN(rate) || rate <= 0) {
       throw new Error('Invalid rate calculated from Bybit API');
     }
-    console.log(`✅ Fetched rate from Bybit + Exchangerate: ${rate} (USDT: ${usdtPrice}, USD→NGN: ${usdToNgnRate}, varOcg: ${varOcg})`);
-    return { rate, source: 'Bybit + Exchangerate', varOcg };
+    console.log(`✅ Fetched rate from Bybit: ${rate} (USDT: ${usdtPrice}, varOcg: ${varOcg})`);
+    return { rate, source: 'Bybit', varOcg };
   } catch (error) {
     console.error('❌ Bybit API failed:', error.message);
     throw error;
   }
 };
 
-// Fetch from Exchangerate-api.com (fallback)
-const fetchFallback = async () => {
-  try {
-    const response = await axios.get('https://api.exchangerate-api.com/v4/latest/USD', {
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-    const rate = response.data.rates.NGN;
-    console.log(`✅ Fetched rate from Exchangerate-api.com: ${rate}`);
-    return { rate, source: 'Exchangerate-api.com' };
-  } catch (error) {
-    console.error('❌ Exchangerate-api.com API failed:', error.message);
-    throw error;
-  }
-};
+
 
 // Fetch rate with retry logic and caching
 const fetchRateWithRetry = async () => {
@@ -93,14 +78,8 @@ const fetchRateWithRetry = async () => {
     }
   }
 
-  // Fallback to Exchangerate.host
-  try {
-    const result = await fetchFallback();
-    cache = { rate: result.rate, timestamp: now, source: result.source };
-    return result;
-  } catch (error) {
-    throw new Error('All API sources failed');
-  }
+  // No fallback - Bybit only
+  throw new Error('Bybit API failed after retries');
 };
 
 /**
@@ -116,7 +95,8 @@ router.get('/usd-ngn-rate', async (req, res) => {
       baseCurrency: "USD",
       quoteCurrency: "NGN",
       exchangeRate: parseFloat(rate.toFixed(2)),
-      varOcg: varOcg || 1.0
+      varOcg: varOcg || 1.0,
+      source
     });
   } catch (error) {
     console.error('❌ Failed to fetch exchange rate:', error.message);
@@ -139,25 +119,6 @@ router.get('/usd-ngn-rate', async (req, res) => {
   }
 });
 
-// Keep old endpoint for backward compatibility (marked for removal)
-router.get('/usdc-ngn', async (req, res) => {
-  try {
-    const { rate, source } = await fetchRateWithRetry();
 
-    res.json({
-      success: true,
-      rate: parseFloat(rate.toFixed(2)),
-      source,
-      updatedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('❌ Failed to fetch exchange rate:', error.message);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to fetch exchange rate. Please try again later.',
-      error: error.message
-    });
-  }
-});
 
 export default router;
