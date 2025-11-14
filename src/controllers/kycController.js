@@ -49,18 +49,20 @@ const generateUploadUrl = async (req, res) => {
       });
     }
 
-    // Check if user already has a document of this type
-    const existingDoc = await KycDocument.findOne({
-      userId,
-      documentType,
-      status: { $in: ['pending', 'approved'] }
-    });
-
-    if (existingDoc) {
-      return res.status(400).json({
-        success: false,
-        message: `You already have a ${documentType} document ${existingDoc.status === 'pending' ? 'pending approval' : 'approved'}`
+    // Check if user already has a document of this type (allow multiple for directorInfo)
+    if (documentType !== 'directorInfo') {
+      const existingDoc = await KycDocument.findOne({
+        userId,
+        documentType,
+        status: { $in: ['pending', 'approved'] }
       });
+
+      if (existingDoc) {
+        return res.status(400).json({
+          success: false,
+          message: `You already have a ${documentType} document ${existingDoc.status === 'pending' ? 'pending approval' : 'approved'}`
+        });
+      }
     }
 
     // Generate unique S3 key
