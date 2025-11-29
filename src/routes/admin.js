@@ -3,14 +3,21 @@ import express from 'express';
 const router = express.Router();
 
 // Import controllers
-import { deleteUnverifiedUsers, getPendingKycSubmissions } from '../controllers/adminController.js';
+import { deleteUnverifiedUsers, getPendingKycSubmissions, getDashboardStats, getAllUsers, getUserById, updateUser, deleteUser } from '../controllers/adminController.js';
 
 // Import middleware
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
 // Admin routes
 router.get('/pending-kyc-submissions', authenticate, requireAdmin, getPendingKycSubmissions);
-router.delete('/delete-unverified-users', authenticate, deleteUnverifiedUsers);
-router.get('/dashboard', (req, res) => res.send('Admin dashboard working'));
+router.delete('/delete-unverified-users', authenticate, requireAdmin, deleteUnverifiedUsers);
+router.get('/dashboard', authenticate, requireAdmin, getDashboardStats);
+
+// User management routes
+router.get('/users', authenticate, requireAdmin, getAllUsers);
+router.get('/users/:userId', authenticate, requireAdmin, getUserById);
+router.put('/users/:userId', authenticate, requireAdmin, updateUser);
+router.delete('/users/:userId', authenticate, requireAdmin, deleteUser);
+
 // __define-ocg__ ensure default export for ESM compatibility
 export default router; // ✅ changed to ESM export

@@ -1,14 +1,14 @@
 import User from '../models/User.js';
 
 /**
- * Get current user profile
+ * Get user profile
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    
+    const user = await User.findById(req.user.userId).select('-password -resetPasswordToken -resetPasswordExpire -verificationToken -verificationCode -verificationCodeExpire');
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -24,9 +24,10 @@ const getProfile = async (req, res) => {
           name: user.name,
           email: user.email,
           isVerified: user.isVerified,
+          approved: user.approved,
+          documentsSubmitted: user.documentsSubmitted,
           lastLogin: user.lastLogin,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt
+          createdAt: user.createdAt
         }
       }
     });
@@ -47,37 +48,47 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { name, email } = req.body;
-    const userId = req.user._id;
+    const userId = req.user.userId;
 
-    // Check if email is being changed and if it already exists
-    if (email && email !== req.user.email) {
-      const existingUser = await User.findOne({ email });
+    // Check if email is being changed and if it's already taken
+    if (email) {
+      const existingUser = await User.findOne({ email, _id: { $ne: userId } });
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          message: 'Email already exists'
+          message: 'Email already in use'
         });
       }
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+
+    const user = await User.findByIdAndUpdate(
       userId,
-      { name, email },
+      updateData,
       { new: true, runValidators: true }
-    );
+    ).select('-password -resetPasswordToken -resetPasswordExpire -verificationToken -verificationCode -verificationCodeExpire');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
 
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully',
       data: {
         user: {
-          id: updatedUser._id,
-          name: updatedUser.name,
-          email: updatedUser.email,
-          isVerified: updatedUser.isVerified,
-          lastLogin: updatedUser.lastLogin,
-          createdAt: updatedUser.createdAt,
-          updatedAt: updatedUser.updatedAt
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          isVerified: user.isVerified,
+          approved: user.approved,
+          documentsSubmitted: user.documentsSubmitted
         }
       }
     });
@@ -91,18 +102,17 @@ const updateProfile = async (req, res) => {
 };
 
 /**
- * Change password
+ * Change user password
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const userId = req.user._id;
+    const userId = req.user.userId;
 
-    // Find user with password
     const user = await User.findById(userId).select('+password');
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -144,11 +154,10 @@ const changePassword = async (req, res) => {
 const deleteAccount = async (req, res) => {
   try {
     const { password } = req.body;
-    const userId = req.user._id;
+    const userId = req.user.userId;
 
-    // Find user with password
     const user = await User.findById(userId).select('+password');
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -156,7 +165,7 @@ const deleteAccount = async (req, res) => {
       });
     }
 
-    // Verify password
+    // Verify password before deletion
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(400).json({
@@ -165,7 +174,7 @@ const deleteAccount = async (req, res) => {
       });
     }
 
-    // Delete user
+    // Delete user account
     await User.findByIdAndDelete(userId);
 
     // Clear cookies
@@ -185,149 +194,9 @@ const deleteAccount = async (req, res) => {
   }
 };
 
-/**
- * Get all users (admin only)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-const getAllUsers = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-
-    const users = await User.find()
-      .select('-password -verificationToken -resetPasswordToken -resetPasswordExpire')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const totalUsers = await User.countDocuments();
-    const totalPages = Math.ceil(totalUsers / limit);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        users,
-        pagination: {
-          current: page,
-          total: totalPages,
-          count: users.length,
-          totalUsers
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Get all users error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching users'
-    });
-  }
-};
-
-/**
- * Get user by ID (admin only)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-const getUserById = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id)
-      .select('-password -verificationToken -resetPasswordToken -resetPasswordExpire');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: { user }
-    });
-  } catch (error) {
-    console.error('Get user by ID error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while fetching user'
-    });
-  }
-};
-
-/**
- * Update user by ID (admin only)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-const updateUserById = async (req, res) => {
-  try {
-    const { name, email, isVerified } = req.body;
-
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { name, email, isVerified },
-      { new: true, runValidators: true }
-    ).select('-password -verificationToken -resetPasswordToken -resetPasswordExpire');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'User updated successfully',
-      data: { user }
-    });
-  } catch (error) {
-    console.error('Update user by ID error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while updating user'
-    });
-  }
-};
-
-/**
- * Delete user by ID (admin only)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-const deleteUserById = async (req, res) => {
-  try {
-    const user = await User.findByIdAndDelete(req.params.id);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'User deleted successfully'
-    });
-  } catch (error) {
-    console.error('Delete user by ID error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while deleting user'
-    });
-  }
-};
-
 export {
   getProfile,
   updateProfile,
   changePassword,
-  deleteAccount,
-  getAllUsers,
-  getUserById,
-  updateUserById,
-  deleteUserById
+  deleteAccount
 };

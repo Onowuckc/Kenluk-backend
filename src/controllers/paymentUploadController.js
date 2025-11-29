@@ -172,14 +172,6 @@ const submitPaymentRequest = async (req, res) => {
 
     await payment.save();
 
-    // Attempt to send to Reap Payment API
-    try {
-      await sendToReapPaymentAPI(payment);
-    } catch (apiError) {
-      console.error('Failed to send to Reap Payment API:', apiError);
-      // Don't fail the request, just log the error
-    }
-
     res.status(201).json({
       success: true,
       message: 'Payment request submitted successfully',
@@ -213,60 +205,101 @@ const submitPaymentRequest = async (req, res) => {
  */
 const sendToReapPaymentAPI = async (payment) => {
   try {
-    const reapPaymentUrl = process.env.REAP_PAYMENT_API_URL;
+    const reapPaymentUrl = process.env.REAP_PAYMENT_API_URL || 'https://sandbox.payments.reap.global/api/payments';
     const apiKey = process.env.REAP_PAYMENT_API_KEY;
+    const entityId = process.env.REAP_ENTITY_ID;
 
-    if (!reapPaymentUrl || !apiKey) {
-      console.warn('Reap Payment API configuration missing');
+    if (!apiKey || !entityId) {
+      console.warn('Reap Payment API configuration missing - REAP_PAYMENT_API_KEY or REAP_ENTITY_ID not set');
       return;
     }
 
+    // Build Reap API payload according to Postman collection
     const payload = {
-      paymentId: payment._id.toString(),
-      userId: payment.userId.toString(),
-      recipientCompany: payment.recipientCompany,
-      recipientBank: payment.recipientBank,
-      recipientBankSwiftCode: payment.recipientBankSwiftCode,
-      accountNumber: payment.accountNumber,
-      recipientBankCountry: payment.recipientBankCountry,
-      recipientAddress: payment.recipientAddress,
-      recipientBankAddress: payment.recipientBankAddress,
-      bankCode: payment.bankCode,
-      branchCode: payment.branchCode,
-      foreignAmount: payment.foreignAmount,
-      foreignCurrency: payment.foreignCurrency,
-      localAmount: payment.localAmount,
-      exchangeRate: payment.exchangeRate,
-      invoiceUrl: await generateInvoiceUrl(payment.invoiceS3Key, payment.invoiceS3Bucket)
+      receivingParty: {
+        type: 'company',
+        name: {
+          name: payment.recipientCompany
+        },
+        accounts: [
+          {
+            type: 'bank',
+            identifier: {
+              standard: 'account_number',
+              value: payment.accountNumber
+            },
+            network: 'SWIFT',
+            currencies: [payment.foreignCurrency],
+            provider: {
+              name: payment.recipientBank,
+              country: payment.recipientBankCountry,
+              networkIdentifier: payment.recipientBankSwiftCode
+            },
+            addresses: [
+              {
+                type: 'postal',
+                street: payment.recipientBankAddress,
+                city: payment.recipientAddress.split(',')[0]?.trim() || payment.recipientAddress,
+                state: payment.recipientBankCountry,
+                country: payment.recipientBankCountry,
+                postalCode: '00000' // Default since we don't collect this
+              }
+            ]
+          }
+        ]
+      },
+      payment: {
+        receivingAmount: payment.foreignAmount,
+        receivingCurrency: payment.foreignCurrency,
+        senderCurrency: payment.foreignCurrency,
+        description: `Payment to ${payment.recipientCompany}`,
+        purposeOfPayment: 'payment_for_goods',
+        metadata: {
+          key: `Invoice: ${payment.invoiceOriginalFileName}`
+        }
+      }
     };
+
+    console.log('Sending payload to Reap API:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(reapPaymentUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Content-Type': 'application/json;schema=PAAS',
+        'Accept': 'application/vnd.api+json; version=1.0.0',
+        'x-reap-api-key': apiKey,
+        'x-reap-entity-id': entityId
       },
       body: JSON.stringify(payload)
     });
 
     const responseData = await response.json();
+    console.log('Reap API response:', response.status, responseData);
 
     if (response.ok) {
       // Update payment with API response
-      payment.reapPaymentId = responseData.paymentId || responseData.id;
-      payment.reapPaymentStatus = 'sent';
-      payment.reapPaymentResponse = responseData;
+      payment.reapPaymentId = responseData.paymentId;
+      payment.reapStatus = 'sent';
+      payment.reapRawResponse = responseData;
       await payment.save();
+      console.log('Payment successfully sent to Reap API:', payment.reapPaymentId);
     } else {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      // Handle API error
+      const errorMessage = responseData.message || `HTTP ${response.status}: ${response.statusText}`;
+      payment.reapStatus = 'failed';
+      payment.reapErrorMessage = errorMessage;
+      payment.reapRawResponse = responseData;
+      await payment.save();
+      throw new Error(`Reap API error: ${errorMessage}`);
     }
 
   } catch (error) {
     console.error('Send to Reap Payment API error:', error);
 
     // Update payment status to failed
-    payment.reapPaymentStatus = 'failed';
-    payment.reapPaymentResponse = { error: error.message };
+    payment.reapStatus = 'failed';
+    payment.reapErrorMessage = error.message;
+    payment.reapRawResponse = { error: error.message };
     await payment.save();
 
     throw error;
@@ -471,10 +504,220 @@ const reviewPayment = async (req, res) => {
   }
 };
 
+/**
+ * Get payment by ID
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getPaymentById = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const userId = req.user._id;
+
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    // Check if user owns this payment or is admin
+    if (payment.userId.toString() !== userId.toString() && !req.user.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Generate pre-signed URL for invoice
+    const invoiceUrl = await generateInvoiceUrl(payment.invoiceS3Key, payment.invoiceS3Bucket);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...payment.toObject(),
+        invoiceUrl
+      }
+    });
+
+  } catch (error) {
+    console.error('Get payment by ID error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while retrieving payment'
+    });
+  }
+};
+
+/**
+ * Action payment (Admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const actionPayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { action } = req.body;
+    const adminId = req.user._id;
+
+    // Validate action
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid action. Must be "approve" or "reject"'
+      });
+    }
+
+    // Find payment
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    if (payment.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment request has already been reviewed'
+      });
+    }
+
+    // Update payment
+    payment.status = action === 'approve' ? 'approved' : 'rejected';
+    payment.approvedBy = adminId;
+    payment.approvedAt = new Date();
+
+    await payment.save();
+
+    // If approved, send to Reap Payment API
+    if (action === 'approve') {
+      try {
+        await sendToReapPaymentAPI(payment);
+      } catch (reapError) {
+        console.error('Failed to send to Reap API:', reapError);
+        // Don't fail the approval if Reap API fails
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Payment request ${action}d successfully`,
+      data: {
+        paymentId: payment._id,
+        status: payment.status,
+        approvedAt: payment.approvedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Action payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while processing payment action'
+    });
+  }
+};
+
+/**
+ * Upload payment documents
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const uploadPaymentDocuments = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { documentType, fileName, fileSize, mimeType } = req.body;
+    const userId = req.user._id;
+
+    // Find payment
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    // Check if user owns this payment
+    if (payment.userId.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (fileSize > maxSize) {
+      return res.status(400).json({
+        success: false,
+        message: 'File size exceeds maximum limit of 10MB'
+      });
+    }
+
+    // Validate MIME type
+    const validMimeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    if (!validMimeTypes.includes(mimeType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid file type. Only PDF, JPEG, PNG, and JPG files are allowed'
+      });
+    }
+
+    // Generate unique S3 key
+    const fileExtension = fileName.split('.').pop();
+    const s3Key = `payment-documents/${userId}/${paymentId}/${uuidv4()}.${fileExtension}`;
+    const bucketName = process.env.S3_BUCKET_NAME;
+
+    // Create S3 command for pre-signed URL
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: s3Key,
+      ContentType: mimeType,
+      Metadata: {
+        userId: userId.toString(),
+        paymentId: paymentId,
+        documentType: documentType || 'additional',
+        originalFileName: fileName
+      }
+    });
+
+    // Generate pre-signed URL (expires in 15 minutes)
+    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 900 });
+
+    res.status(200).json({
+      success: true,
+      message: 'Document upload URL generated successfully',
+      data: {
+        uploadUrl,
+        s3Key,
+        bucketName,
+        expiresIn: 900 // 15 minutes
+      }
+    });
+
+  } catch (error) {
+    console.error('Upload payment documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while generating upload URL'
+    });
+  }
+};
+
 export {
   generateInvoiceUploadUrl,
   submitPaymentRequest,
   getUserPayments,
   getAllPayments,
-  reviewPayment
+  reviewPayment,
+  getPaymentById,
+  actionPayment,
+  uploadPaymentDocuments
 };

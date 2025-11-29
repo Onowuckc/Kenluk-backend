@@ -1,76 +1,40 @@
+// __define-ocg__ keeping it clean & consistent (ESM)
 import express from 'express';
 const router = express.Router();
 
 // Import controllers
-import {
-  getProfile,
-  updateProfile,
-  changePassword,
-  deleteAccount,
-  getAllUsers,
-  getUserById,
-  updateUserById,
-  deleteUserById
-} from '../controllers/userController.js';
+import { getProfile, updateProfile, changePassword, deleteAccount } from '../controllers/userController.js';
 
 // Import middleware
-import { authenticate, requireAdmin } from '../middleware/auth.js';
-import { validateProfileUpdate } from '../middleware/validation.js';
+import { authenticate } from '../middleware/auth.js';
 
 /**
- * @route   GET /api/users/profile
- * @desc    Get current user profile
+ * @route   GET /api/user/profile
+ * @desc    Get user profile
  * @access  Private
  */
 router.get('/profile', authenticate, getProfile);
 
 /**
- * @route   PUT /api/users/profile
+ * @route   PUT /api/user/profile
  * @desc    Update user profile
  * @access  Private
  */
-router.put('/profile', authenticate, validateProfileUpdate, updateProfile);
+router.put('/profile', authenticate, updateProfile);
 
 /**
- * @route   PUT /api/users/change-password
+ * @route   PUT /api/user/change-password
  * @desc    Change user password
  * @access  Private
  */
 router.put('/change-password', authenticate, changePassword);
 
 /**
- * @route   DELETE /api/users/account
+ * @route   DELETE /api/user/account
  * @desc    Delete user account
  * @access  Private
  */
 router.delete('/account', authenticate, deleteAccount);
 
-/**
- * @route   GET /api/users
- * @desc    Get all users (admin only)
- * @access  Private/Admin
- */
-router.get('/', authenticate, requireAdmin, getAllUsers);
-
-/**
- * @route   GET /api/users/:id
- * @desc    Get user by ID (admin only)
- * @access  Private/Admin
- */
-router.get('/:id', authenticate, requireAdmin, getUserById);
-
-/**
- * @route   PUT /api/users/:id
- * @desc    Update user by ID (admin only)
- * @access  Private/Admin
- */
-router.put('/:id', authenticate, requireAdmin, updateUserById);
-
-/**
- * @route   DELETE /api/users/:id
- * @desc    Delete user by ID (admin only)
- * @access  Private/Admin
- */
-router.delete('/:id', authenticate, requireAdmin, deleteUserById);
-
+// __define-ocg__ ensure default export for ESM compatibility
 export default router; // ✅ changed to ESM export

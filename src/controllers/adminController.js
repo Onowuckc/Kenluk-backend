@@ -130,8 +130,242 @@ const deleteAllUsers = async (req, res) => {
   }
 };
 
+/**
+ * Get admin dashboard statistics
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getDashboardStats = async (req, res) => {
+  try {
+    // Get total users count
+    const totalUsers = await User.countDocuments();
+
+    // Get pending registrations (unverified users)
+    const pendingRegistrations = await User.countDocuments({ isVerified: false });
+
+    // Get pending KYC documents
+    const pendingDocuments = await KycDocument.countDocuments({ status: 'pending' });
+
+    // Get pending payments (assuming Payment model exists)
+    let pendingPayments = 0;
+    try {
+      const Payment = (await import('../models/Payment.js')).default;
+      pendingPayments = await Payment.countDocuments({ status: 'pending' });
+    } catch (error) {
+      // Payment model might not exist yet, continue with 0
+      console.log('Payment model not available for dashboard stats');
+    }
+
+    // Get recent activity (last 10 activities)
+    const recentUsers = await User.find({ isVerified: true })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('name email createdAt');
+
+    const recentDocuments = await KycDocument.find({ status: 'approved' })
+      .populate('userId', 'name')
+      .sort({ updatedAt: -1 })
+      .limit(5)
+      .select('documentType userId updatedAt');
+
+    // Format recent activity
+    const recentActivity = [
+      ...recentUsers.map(user => ({
+        type: 'registration',
+        message: `${user.name} completed registration`,
+        time: user.createdAt
+      })),
+      ...recentDocuments.map(doc => ({
+        type: 'document',
+        message: `${doc.userId?.name || 'User'} document approved`,
+        time: doc.updatedAt
+      }))
+    ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 10);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        stats: {
+          totalUsers,
+          pendingRegistrations,
+          pendingDocuments,
+          pendingPayments
+        },
+        recentActivity
+      }
+    });
+
+  } catch (error) {
+    console.error('Get dashboard stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while retrieving dashboard statistics'
+    });
+  }
+};
+
+/**
+ * Get all users (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getAllUsers = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const users = await User.find()
+      .select('-password -__v')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalUsers = await User.countDocuments();
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        users,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalUsers,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get all users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while retrieving users'
+    });
+  }
+};
+
+/**
+ * Get user by ID (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id).select('-password -__v');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error('Get user by ID error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while retrieving user'
+    });
+  }
+};
+
+/**
+ * Update user (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Prevent updating sensitive fields
+    delete updates.password;
+    delete updates.isAdmin;
+    delete updates.__v;
+
+    const user = await User.findByIdAndUpdate(
+      id,
+      updates,
+      { new: true, runValidators: true }
+    ).select('-password -__v');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: user,
+      message: 'User updated successfully'
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating user'
+    });
+  }
+};
+
+/**
+ * Delete user (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if user is admin
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.isAdmin) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete admin user'
+      });
+    }
+
+    await User.findByIdAndDelete(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while deleting user'
+    });
+  }
+};
+
 export {
+  getAllUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
   getPendingKycSubmissions,
   deleteUnverifiedUsers,
-  deleteAllUsers
+  deleteAllUsers,
+  getDashboardStats
 };

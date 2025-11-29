@@ -4,7 +4,10 @@ import {
   submitPaymentRequest,
   getUserPayments,
   getAllPayments,
-  reviewPayment
+  reviewPayment,
+  getPaymentById,
+  actionPayment,
+  uploadPaymentDocuments
 } from '../controllers/paymentUploadController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import {
@@ -22,9 +25,12 @@ router.use(authenticate);
 router.post('/upload-invoice-url', validateInvoiceUploadUrl, generateInvoiceUploadUrl);
 router.post('/submit-request', validatePaymentSubmission, submitPaymentRequest);
 router.get('/my-requests', getUserPayments);
+router.get('/:paymentId', getPaymentById);
+router.post('/:paymentId/documents', uploadPaymentDocuments);
 
 // Admin routes
 router.get('/all', requireAdmin, getAllPayments);
 router.put('/:paymentId/review', requireAdmin, validatePaymentReview, reviewPayment);
+router.put('/:paymentId/action', requireAdmin, validatePaymentReview, actionPayment);
 
 export default router;

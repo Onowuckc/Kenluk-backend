@@ -124,12 +124,16 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     sparse: true // Allow null values but ensure uniqueness when present
   },
-  reapPaymentStatus: {
+  reapStatus: {
     type: String,
-    enum: ['not_sent', 'sent', 'processing', 'completed', 'failed']
+    enum: ['not_sent', 'sent', 'processing', 'completed', 'failed'],
+    default: 'not_sent'
   },
-  reapPaymentResponse: {
-    type: mongoose.Schema.Types.Mixed // Store API response data
+  reapRawResponse: {
+    type: mongoose.Schema.Types.Mixed // Store full API response data
+  },
+  reapErrorMessage: {
+    type: String
   },
   // Tracking
   submittedAt: {
