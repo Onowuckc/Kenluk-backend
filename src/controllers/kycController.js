@@ -1,6 +1,7 @@
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import KycDocument from '../models/KycDocument.js';
+import User from '../models/User.js';
 import s3Client from '../config/s3Client.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -320,6 +321,11 @@ const reviewDocument = async (req, res) => {
     }
 
     await document.save();
+
+    // If document was approved, check if all required documents are approved
+    if (action === 'approve') {
+      await checkAndApproveUser(document.userId);
+    }
 
     res.status(200).json({
       success: true,
