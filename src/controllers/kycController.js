@@ -24,7 +24,7 @@ const generateUploadUrl = async (req, res) => {
     }
 
     // Validate document type
-    const validTypes = ['bvn', 'cac', 'proofOfAddress', 'tin', 'directorInfo'];
+    const validTypes = ['bvn', 'cac', 'proofOfAddress', 'tin', 'directorInfo', 'passport'];
     if (!validTypes.includes(documentType)) {
       return res.status(400).json({
         success: false,

@@ -176,7 +176,7 @@ const validateKycUploadUrl = [
   body('documentType')
     .notEmpty()
     .withMessage('Document type is required')
-    .isIn(['bvn', 'cac', 'proofOfAddress', 'tin', 'directorInfo'])
+    .isIn(['bvn', 'cac', 'proofOfAddress', 'tin', 'directorInfo', 'passport'])
     .withMessage('Invalid document type'),
 
   body('fileName')
@@ -211,7 +211,7 @@ const validateKycConfirmUpload = [
   body('documentType')
     .notEmpty()
     .withMessage('Document type is required')
-    .isIn(['bvn', 'cac', 'proofOfAddress', 'tin', 'directorInfo'])
+    .isIn(['bvn', 'cac', 'proofOfAddress', 'tin', 'directorInfo', 'passport'])
     .withMessage('Invalid document type'),
 
   body('fileName')
