@@ -349,13 +349,7 @@ const reviewDocument = async (req, res) => {
   }
 };
 
-export {
-  generateUploadUrl,
-  confirmUpload,
-  getUserDocuments,
-  getPendingDocuments,
-  reviewDocument
-};
+
 
 /**
  * Check if all required documents are approved and approve user
