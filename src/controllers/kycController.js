@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
  */
 const generateUploadUrl = async (req, res) => {
   try {
-    const { documentType, fileName, fileSize, mimeType } = req.body;
+    const { documentType, fileName, fileSize, mimeType, isReupload = false } = req.body;
     const userId = req.user._id;
 
     // Validate input
@@ -50,20 +50,22 @@ const generateUploadUrl = async (req, res) => {
       });
     }
 
-    // Check if user already has a document of this type (allow multiple for directorInfo)
-    if (documentType !== 'directorInfo') {
-      const existingDoc = await KycDocument.findOne({
+    // Check if user already has a document of this type (allow multiple for directorInfo and reuploads)
+    if (documentType !== 'directorInfo' && !isReupload) {
+      const existingPending = await KycDocument.findOne({
         userId,
         documentType,
-        status: { $in: ['pending', 'approved'] }
+        status: 'pending'
       });
 
-      if (existingDoc) {
+      if (existingPending) {
         return res.status(400).json({
           success: false,
-          message: `You already have a ${documentType} document ${existingDoc.status === 'pending' ? 'pending approval' : 'approved'}`
+          message: `You already have a ${documentType} document pending approval. Please wait for it to be reviewed before uploading a new one.`
         });
       }
+
+      // Allow uploading even if there's an approved document, as it's a replacement
     }
 
     // Generate unique S3 key
@@ -353,4 +355,48 @@ export {
   getUserDocuments,
   getPendingDocuments,
   reviewDocument
+};
+
+/**
+ * Check if all required documents are approved and approve user
+ * @param {ObjectId} userId - User ID
+ */
+const checkAndApproveUser = async (userId) => {
+  try {
+    // Check if all required documents are approved
+    const requiredTypes = ['bvn', 'cac', 'proofOfAddress', 'tin', 'passport'];
+
+    for (const docType of requiredTypes) {
+      const approvedDoc = await KycDocument.findOne({
+        userId,
+        documentType: docType,
+        status: 'approved'
+      });
+
+      if (!approvedDoc) {
+        // Not all documents are approved yet
+        return;
+      }
+    }
+
+    // All required documents are approved, update user status
+    await User.findByIdAndUpdate(userId, {
+      isVerified: true,
+      verifiedAt: new Date()
+    });
+
+    console.log(`User ${userId} has been automatically verified after all documents were approved`);
+
+  } catch (error) {
+    console.error('Error in checkAndApproveUser:', error);
+  }
+};
+
+export {
+  generateUploadUrl,
+  confirmUpload,
+  getUserDocuments,
+  getPendingDocuments,
+  reviewDocument,
+  checkAndApproveUser
 };
