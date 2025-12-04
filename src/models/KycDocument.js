@@ -10,7 +10,7 @@ const kycDocumentSchema = new mongoose.Schema({
   documentType: {
     type: String,
     required: true,
-    enum: ['bvn', 'cac', 'proofOfAddress', 'tin', 'directorInfo'],
+    enum: ['bvn', 'cac', 'proofOfAddress', 'tin', 'directorInfo', 'passport'],
     index: true
   },
   fileName: {
