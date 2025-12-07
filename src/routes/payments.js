@@ -25,11 +25,13 @@ router.use(authenticate);
 router.post('/upload-invoice-url', validateInvoiceUploadUrl, generateInvoiceUploadUrl);
 router.post('/submit-request', validatePaymentSubmission, submitPaymentRequest);
 router.get('/my-requests', getUserPayments);
-router.get('/:paymentId', getPaymentById);
-router.post('/:paymentId/documents', uploadPaymentDocuments);
 
 // Admin routes
 router.get('/all', requireAdmin, getAllPayments);
+
+// User routes (continued - must come after /all to avoid conflict)
+router.get('/:paymentId', getPaymentById);
+router.post('/:paymentId/documents', uploadPaymentDocuments);
 router.put('/:paymentId/review', requireAdmin, validatePaymentReview, reviewPayment);
 router.put('/:paymentId/action', requireAdmin, validatePaymentReview, actionPayment);
 

@@ -375,8 +375,8 @@ const checkAndApproveUser = async (userId) => {
 
     // All required documents are approved, update user status
     await User.findByIdAndUpdate(userId, {
-      isVerified: true,
-      verifiedAt: new Date()
+      approved: true,
+      approvedAt: new Date()
     });
 
     console.log(`User ${userId} has been automatically verified after all documents were approved`);

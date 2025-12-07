@@ -74,7 +74,14 @@ const simulateFundAccount = async (req, res) => {
       body: JSON.stringify(payload)
     });
 
-    const responseData = await response.json();
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (parseError) {
+      console.error('Failed to parse Reap API response:', parseError);
+      responseData = { message: 'Invalid response from Reap API' };
+    }
+
     console.log('Reap simulation response:', response.status, responseData);
 
     if (response.ok) {
@@ -85,14 +92,14 @@ const simulateFundAccount = async (req, res) => {
           currency,
           amount,
           network,
-          transactionId: responseData.transactionId || 'simulated',
-          balance: responseData.balance || amount
+          transactionId: responseData?.transactionId || responseData?.id || 'simulated',
+          balance: responseData?.balance || amount
         }
       });
     } else {
       res.status(response.status).json({
         success: false,
-        message: responseData.message || 'Failed to fund account',
+        message: responseData?.message || 'Failed to fund account',
         error: responseData
       });
     }
