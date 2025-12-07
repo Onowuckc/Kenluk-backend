@@ -22,6 +22,7 @@ import adminRoutes from './routes/admin.js';
 import ratesRoutes from './routes/rates.js';
 import kycRoutes from './routes/kyc.js';
 import paymentRoutes from './routes/payments.js';
+import simulationRoutes from './routes/simulations.js';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
@@ -54,6 +55,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/rates', ratesRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/simulations', simulationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
