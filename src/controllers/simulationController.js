@@ -177,12 +177,20 @@ const simulatePaymentLifecycle = async (req, res) => {
       headers: {
         'Content-Type': 'application/json;schema=PAAS',
         'x-reap-api-key': apiKey,
-        'x-reap-entity-id': entityId
+        'x-reap-entity-id': entityId,
+        'Accept': 'application/vnd.api+json; version=1.0.0'
       },
       body: JSON.stringify(payload)
     });
 
-    const responseData = await response.json();
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (parseError) {
+      console.error('Failed to parse Reap API response:', parseError);
+      responseData = { message: 'Invalid response from Reap API' };
+    }
+
     console.log('Reap simulation response:', response.status, responseData);
 
     if (response.ok) {
@@ -282,12 +290,20 @@ const simulateTrackingLifecycle = async (req, res) => {
       headers: {
         'Content-Type': 'application/json;schema=PAAS',
         'x-reap-api-key': apiKey,
-        'x-reap-entity-id': entityId
+        'x-reap-entity-id': entityId,
+        'Accept': 'application/vnd.api+json; version=1.0.0'
       },
       body: JSON.stringify(payload)
     });
 
-    const responseData = await response.json();
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (parseError) {
+      console.error('Failed to parse Reap API response:', parseError);
+      responseData = { message: 'Invalid response from Reap API' };
+    }
+
     console.log('Reap simulation response:', response.status, responseData);
 
     if (response.ok) {
@@ -350,7 +366,13 @@ const getAccountBalance = async (req, res) => {
       }
     });
 
-    const responseData = await response.json();
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (parseError) {
+      console.error('Failed to parse Reap API response:', parseError);
+      responseData = { message: 'Invalid response from Reap API' };
+    }
 
     if (response.ok) {
       res.status(200).json({
