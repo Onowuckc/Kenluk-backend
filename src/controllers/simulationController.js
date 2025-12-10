@@ -68,7 +68,8 @@ const simulateFundAccount = async (req, res) => {
       headers: {
         'Content-Type': 'application/json;schema=PAAS',
         'x-reap-api-key': apiKey,
-        'x-reap-entity-id': entityId
+        'x-reap-entity-id': entityId,
+        'Accept': 'application/vnd.api+json; version=1.0.0'
       },
       body: JSON.stringify(payload)
     });
