@@ -92,7 +92,6 @@ const simulateFundAccount = async (req, res) => {
           currency: responseData?.currency || currency,
           amount,
           network,
-          transactionId: 'simulated',
           balance: responseData?.balance || amount
         }
       });
