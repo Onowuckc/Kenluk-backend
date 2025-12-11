@@ -56,7 +56,7 @@ const simulateFundAccount = async (req, res) => {
 
     const payload = {
       currency,
-      amount: amount.toString(),
+      amount: amount,
       network,
       type: 'fund_in'
     };
