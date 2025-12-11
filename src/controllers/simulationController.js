@@ -89,10 +89,10 @@ const simulateFundAccount = async (req, res) => {
         success: true,
         message: 'Account funded successfully in sandbox',
         data: {
-          currency,
+          currency: responseData?.currency || currency,
           amount,
           network,
-          transactionId: responseData?.transactionId || responseData?.id || 'simulated',
+          transactionId: 'simulated',
           balance: responseData?.balance || amount
         }
       });
