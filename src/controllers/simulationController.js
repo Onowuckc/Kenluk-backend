@@ -55,6 +55,7 @@ const simulateFundAccount = async (req, res) => {
     }
 
     const payload = {
+      id: `simulation-fund-${Date.now()}`,
       currency,
       amount: amount,
       network,
@@ -66,10 +67,10 @@ const simulateFundAccount = async (req, res) => {
     const response = await fetch(reapUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json;schema=PAAS',
+        'accept': 'application/json',
+        'content-type': 'application/json',
         'x-reap-api-key': apiKey,
-        'x-reap-entity-id': entityId,
-        'Accept': 'application/vnd.api+json; version=1.0.0'
+        'x-reap-entity-id': entityId
       },
       body: JSON.stringify(payload)
     });
@@ -92,6 +93,7 @@ const simulateFundAccount = async (req, res) => {
           currency: responseData?.currency || currency,
           amount,
           network,
+          transactionId: 'simulated',
           balance: responseData?.balance || amount
         }
       });
