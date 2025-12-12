@@ -43,7 +43,7 @@ const simulateFundAccount = async (req, res) => {
       });
     }
 
-    const reapUrl = process.env.REAP_PAYMENT_API_URL || 'https://sandbox.payments.reap.global/api/simulate/balances';
+    const reapUrl = 'https://sandbox.payments.reap.global/api/simulate/balances';
     const apiKey = process.env.REAP_PAYMENT_API_KEY;
     const entityId = process.env.REAP_ENTITY_ID;
 
@@ -57,7 +57,7 @@ const simulateFundAccount = async (req, res) => {
     const payload = {
       id: `simulation-fund-${Date.now()}`,
       currency,
-      amount: amount,
+      amount,
       network,
       type: 'fund_in'
     };

@@ -14,11 +14,10 @@ const testSimulation = async () => {
   }
 
   const payload = {
-    id: 'test-simulation-123',
     currency: 'USDC',
     network: 'Ethereum',
     type: 'fund_in',
-    amount: '500'
+    amount: 500
   };
 
   console.log('Payload:', JSON.stringify(payload, null, 2));
