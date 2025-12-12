@@ -55,14 +55,12 @@ const simulateFundAccount = async (req, res) => {
     }
 
     const payload = {
-      id: `simulation-fund-${Date.now()}`,
       currency,
       amount,
-      network,
-      type: 'fund_in'
+      network
     };
 
-    console.log('Simulating account funding:', JSON.stringify(payload, null, 2));
+    console.log('Validation: Exact body sent to Reap:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(reapUrl, {
       method: 'POST',
