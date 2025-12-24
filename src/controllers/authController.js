@@ -136,7 +136,9 @@ const login = async (req, res) => {
           name: user.name,
           email: user.email,
           isVerified: user.isVerified,
-          role: user.isAdmin ? 'admin' : 'user'
+          role: user.isAdmin ? 'admin' : 'user',
+          accountStatus: user.accountStatus,
+          documentsSubmitted: user.documentsSubmitted
         },
         tokens: {
           accessToken: tokens.accessToken,
@@ -499,7 +501,9 @@ const adminLogin = async (req, res) => {
           name: user.name,
           email: user.email,
           isVerified: user.isVerified,
-          role: 'admin'
+          role: 'admin',
+          accountStatus: user.accountStatus,
+          documentsSubmitted: user.documentsSubmitted
         },
         tokens: {
           accessToken: tokens.accessToken,
@@ -570,7 +574,7 @@ const verify = async (req, res) => {
           email: user.email,
           role: user.isAdmin ? 'admin' : 'user',
           isVerified: user.isVerified,
-          approved: user.approved,
+          accountStatus: user.accountStatus,
           documentsSubmitted: user.documentsSubmitted
         }
       }
