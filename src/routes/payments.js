@@ -10,6 +10,7 @@ import {
   uploadPaymentDocuments
 } from '../controllers/paymentUploadController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { requireAccountApproval } from '../middleware/accountApproval.js';
 import {
   validateInvoiceUploadUrl,
   validatePaymentSubmission,
@@ -22,9 +23,9 @@ const router = express.Router();
 router.use(authenticate);
 
 // User routes
-router.post('/upload-invoice-url', validateInvoiceUploadUrl, generateInvoiceUploadUrl);
-router.post('/submit-request', validatePaymentSubmission, submitPaymentRequest);
-router.get('/my-requests', getUserPayments);
+router.post('/upload-invoice-url', requireAccountApproval, validateInvoiceUploadUrl, generateInvoiceUploadUrl);
+router.post('/submit-request', requireAccountApproval, validatePaymentSubmission, submitPaymentRequest);
+router.get('/my-requests', requireAccountApproval, getUserPayments);
 
 // Admin routes
 router.get('/all', requireAdmin, getAllPayments);

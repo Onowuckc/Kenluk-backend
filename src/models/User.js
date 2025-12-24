@@ -38,9 +38,10 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  approved: {
-    type: Boolean,
-    default: false
+  accountStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
   }
 }, {
   timestamps: true

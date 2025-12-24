@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 // Import controllers
-import { deleteUnverifiedUsers, getPendingKycSubmissions, getDashboardStats, getAllUsers, getUserById, updateUser, deleteUser } from '../controllers/adminController.js';
+import { deleteUnverifiedUsers, getPendingKycSubmissions, getDashboardStats, getAllUsers, getUserById, updateUser, deleteUser, approveAccount } from '../controllers/adminController.js';
 
 // Import middleware
 import { authenticate, requireAdmin } from '../middleware/auth.js';
@@ -17,6 +17,8 @@ router.get('/dashboard', authenticate, requireAdmin, getDashboardStats);
 router.get('/users', authenticate, requireAdmin, getAllUsers);
 router.get('/users/:userId', authenticate, requireAdmin, getUserById);
 router.put('/users/:userId', authenticate, requireAdmin, updateUser);
+router.put('/users/:userId/approve', authenticate, requireAdmin, approveAccount);
+router.put('/users/:userId/reject', authenticate, requireAdmin, rejectAccount);
 router.delete('/users/:userId', authenticate, requireAdmin, deleteUser);
 
 // __define-ocg__ ensure default export for ESM compatibility

@@ -320,6 +320,105 @@ const updateUser = async (req, res) => {
 };
 
 /**
+ * Approve user account (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const approveAccount = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.accountStatus === 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Account is already approved'
+      });
+    }
+
+    user.accountStatus = 'approved';
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Account approved successfully',
+      data: {
+        userId: user._id,
+        accountStatus: user.accountStatus
+      }
+    });
+  } catch (error) {
+    console.error('Approve account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while approving account'
+    });
+  }
+};
+
+/**
+ * Reject user account (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const rejectAccount = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { reason } = req.body;
+
+    if (!reason || reason.trim().length < 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rejection reason must be at least 10 characters long'
+      });
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.accountStatus === 'rejected') {
+      return res.status(400).json({
+        success: false,
+        message: 'Account is already rejected'
+      });
+    }
+
+    user.accountStatus = 'rejected';
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Account rejected successfully',
+      data: {
+        userId: user._id,
+        accountStatus: user.accountStatus,
+        rejectionReason: reason.trim()
+      }
+    });
+  } catch (error) {
+    console.error('Reject account error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while rejecting account'
+    });
+  }
+};
+
+/**
  * Delete user (admin only)
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -364,6 +463,8 @@ export {
   getUserById,
   updateUser,
   deleteUser,
+  approveAccount,
+  rejectAccount,
   getPendingKycSubmissions,
   deleteUnverifiedUsers,
   deleteAllUsers,
