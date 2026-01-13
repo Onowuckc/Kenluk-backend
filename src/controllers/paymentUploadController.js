@@ -144,6 +144,48 @@ const submitPaymentRequest = async (req, res) => {
       });
     }
 
+    // Build Reap payload for snapshot
+    const reapPayload = {
+      receivingParty: {
+        type: 'company',
+        name: {
+          name: recipientCompany.trim()
+        },
+        accounts: [{
+          type: 'bank',
+          identifier: {
+            standard: 'account_number',
+            value: accountNumber.trim()
+          },
+          network: 'SWIFT',
+          currencies: [foreignCurrency],
+          provider: {
+            name: recipientBank.trim(),
+            country: recipientBankCountry.trim(),
+            networkIdentifier: recipientBankSwiftCode.trim()
+          },
+          addresses: [{
+            type: 'postal',
+            street: recipientBankAddress.trim(),
+            city: recipientAddress.split(',')[0]?.trim() || recipientAddress.trim(),
+            state: recipientBankCountry.trim(),
+            country: recipientBankCountry.trim(),
+            postalCode: '00000'
+          }]
+        }]
+      },
+      payment: {
+        receivingAmount: foreignAmount,
+        receivingCurrency: foreignCurrency,
+        senderCurrency: foreignCurrency,
+        description: `Payment to ${recipientCompany.trim()}`,
+        purposeOfPayment: 'payment_for_goods',
+        metadata: {
+          key: `Invoice: ${invoiceFileName}`
+        }
+      }
+    };
+
     // Create payment record
     const payment = new Payment({
       userId,
@@ -166,8 +208,8 @@ const submitPaymentRequest = async (req, res) => {
       foreignCurrency,
       localAmount,
       exchangeRate,
-      status: 'pending',
-      reapPaymentStatus: 'not_sent'
+      status: 'pending_admin_approval',
+      reapPayloadSnapshot: reapPayload
     });
 
     await payment.save();
@@ -711,6 +753,67 @@ const uploadPaymentDocuments = async (req, res) => {
   }
 };
 
+/**
+ * Approve payment (Admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const approvePayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const adminId = req.user._id;
+
+    // Find payment
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    if (payment.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment request has already been reviewed'
+      });
+    }
+
+    // Update payment status to approved
+    payment.status = 'approved';
+    payment.approvedBy = adminId;
+    payment.approvedAt = new Date();
+
+    await payment.save();
+
+    // Send to Reap Payment API
+    try {
+      await sendToReapPaymentAPI(payment);
+    } catch (reapError) {
+      console.error('Failed to send to Reap API:', reapError);
+      // Don't fail the approval if Reap API fails
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment request approved successfully',
+      data: {
+        paymentId: payment._id,
+        status: payment.status,
+        approvedAt: payment.approvedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Approve payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while approving payment'
+    });
+  }
+};
+
 export {
   generateInvoiceUploadUrl,
   submitPaymentRequest,
@@ -719,5 +822,6 @@ export {
   reviewPayment,
   getPaymentById,
   actionPayment,
-  uploadPaymentDocuments
+  uploadPaymentDocuments,
+  approvePayment
 };
