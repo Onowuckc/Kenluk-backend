@@ -104,7 +104,7 @@ const paymentSchema = new mongoose.Schema({
   // Status and approval
   status: {
     type: String,
-    enum: ['pending_admin_approval', 'submitted_to_reap', 'completed', 'failed'],
+    enum: ['pending_admin_approval', 'approved', 'rejected', 'submitted_to_reap', 'completed', 'failed'],
     default: 'pending_admin_approval',
     index: true
   },
