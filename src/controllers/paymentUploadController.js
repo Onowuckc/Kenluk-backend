@@ -508,7 +508,7 @@ const reviewPayment = async (req, res) => {
       });
     }
 
-    if (payment.status !== 'pending') {
+    if (payment.status !== 'pending_admin_approval') {
       return res.status(400).json({
         success: false,
         message: 'Payment request has already been reviewed'
@@ -622,7 +622,7 @@ const actionPayment = async (req, res) => {
       });
     }
 
-    if (payment.status !== 'pending') {
+    if (payment.status !== 'pending_admin_approval') {
       return res.status(400).json({
         success: false,
         message: 'Payment request has already been reviewed'
@@ -773,7 +773,7 @@ const approvePayment = async (req, res) => {
       });
     }
 
-    if (payment.status !== 'pending') {
+    if (payment.status !== 'pending_admin_approval') {
       return res.status(400).json({
         success: false,
         message: 'Payment request has already been reviewed'
