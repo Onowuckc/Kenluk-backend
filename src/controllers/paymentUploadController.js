@@ -526,6 +526,21 @@ const reviewPayment = async (req, res) => {
 
     await payment.save();
 
+    // If approved, send to Reap Payment API
+    let reapStatus = null;
+    let reapError = null;
+    if (action === 'approve') {
+      try {
+        await sendToReapPaymentAPI(payment);
+        reapStatus = 'success';
+      } catch (error) {
+        console.error('Failed to send to Reap API:', error);
+        reapStatus = 'failed';
+        reapError = error.message;
+        // Don't fail the approval if Reap API fails
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: `Payment request ${action}d successfully`,
@@ -533,7 +548,9 @@ const reviewPayment = async (req, res) => {
         paymentId: payment._id,
         status: payment.status,
         approvedAt: payment.approvedAt,
-        rejectionReason: payment.rejectionReason
+        rejectionReason: payment.rejectionReason,
+        reapStatus: reapStatus,
+        reapError: reapError
       }
     });
 
@@ -637,11 +654,16 @@ const actionPayment = async (req, res) => {
     await payment.save();
 
     // If approved, send to Reap Payment API
+    let reapStatus = null;
+    let reapError = null;
     if (action === 'approve') {
       try {
         await sendToReapPaymentAPI(payment);
-      } catch (reapError) {
-        console.error('Failed to send to Reap API:', reapError);
+        reapStatus = 'success';
+      } catch (error) {
+        console.error('Failed to send to Reap API:', error);
+        reapStatus = 'failed';
+        reapError = error.message;
         // Don't fail the approval if Reap API fails
       }
     }
@@ -652,7 +674,9 @@ const actionPayment = async (req, res) => {
       data: {
         paymentId: payment._id,
         status: payment.status,
-        approvedAt: payment.approvedAt
+        approvedAt: payment.approvedAt,
+        reapStatus: reapStatus,
+        reapError: reapError
       }
     });
 
@@ -788,10 +812,15 @@ const approvePayment = async (req, res) => {
     await payment.save();
 
     // Send to Reap Payment API
+    let reapStatus = null;
+    let reapError = null;
     try {
       await sendToReapPaymentAPI(payment);
+      reapStatus = 'success';
     } catch (reapError) {
       console.error('Failed to send to Reap API:', reapError);
+      reapStatus = 'failed';
+      reapError = reapError.message;
       // Don't fail the approval if Reap API fails
     }
 
@@ -801,7 +830,9 @@ const approvePayment = async (req, res) => {
       data: {
         paymentId: payment._id,
         status: payment.status,
-        approvedAt: payment.approvedAt
+        approvedAt: payment.approvedAt,
+        reapStatus: reapStatus,
+        reapError: reapError
       }
     });
 
