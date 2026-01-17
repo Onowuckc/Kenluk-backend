@@ -45,12 +45,12 @@ const paymentSchema = new mongoose.Schema({
   },
   bankCode: {
     type: String,
-    required: true,
+    default: '',
     trim: true
   },
   branchCode: {
     type: String,
-    required: true,
+    default: '',
     trim: true
   },
   // Invoice document details

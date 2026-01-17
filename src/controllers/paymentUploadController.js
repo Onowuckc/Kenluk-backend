@@ -246,15 +246,30 @@ const submitPaymentRequest = async (req, res) => {
  * @param {Object} payment - Payment document
  */
 const sendToReapPaymentAPI = async (payment) => {
+  console.log(`[REAP DEBUG] Starting Reap API call for payment ${payment._id}`);
+
   try {
+    // Log environment variables presence (not values)
+    const envVars = {
+      REAP_PAYMENT_API_URL: !!process.env.REAP_PAYMENT_API_URL,
+      REAP_PAYMENT_API_KEY: !!process.env.REAP_PAYMENT_API_KEY,
+      REAP_ENTITY_ID: !!process.env.REAP_ENTITY_ID
+    };
+    console.log('[REAP DEBUG] Environment variables check:', envVars);
+
     const reapPaymentUrl = process.env.REAP_PAYMENT_API_URL || 'https://sandbox.payments.reap.global/api/payments';
     const apiKey = process.env.REAP_PAYMENT_API_KEY;
     const entityId = process.env.REAP_ENTITY_ID;
 
     if (!apiKey || !entityId) {
-      console.warn('Reap Payment API configuration missing - REAP_PAYMENT_API_KEY or REAP_ENTITY_ID not set');
-      return;
+      console.error('[REAP DEBUG] Reap Payment API configuration missing - REAP_PAYMENT_API_KEY or REAP_ENTITY_ID not set');
+      throw new Error('Missing Reap API configuration');
     }
+
+    // Determine network and currency based on bank country
+    const network = payment.recipientBankCountry === 'HK' ? 'FPS' : 'SWIFT';
+    // FPS only supports HKD or GBP, so use HKD for Hong Kong payments
+    const receivingCurrency = payment.recipientBankCountry === 'HK' ? 'HKD' : payment.foreignCurrency;
 
     // Build Reap API payload according to Postman collection
     const payload = {
@@ -270,12 +285,12 @@ const sendToReapPaymentAPI = async (payment) => {
               standard: 'account_number',
               value: payment.accountNumber
             },
-            network: 'SWIFT',
-            currencies: [payment.foreignCurrency],
+            network: network,
+            currencies: [receivingCurrency],
             provider: {
               name: payment.recipientBank,
               country: payment.recipientBankCountry,
-              networkIdentifier: payment.recipientBankSwiftCode
+              networkIdentifier: network === 'FPS' ? payment.bankCode : payment.recipientBankSwiftCode
             },
             addresses: [
               {
@@ -292,8 +307,8 @@ const sendToReapPaymentAPI = async (payment) => {
       },
       payment: {
         receivingAmount: payment.foreignAmount,
-        receivingCurrency: payment.foreignCurrency,
-        senderCurrency: payment.foreignCurrency,
+        receivingCurrency: receivingCurrency,
+        senderCurrency: 'USDT', // Use USDT as sender currency (stablecoin)
         description: `Payment to ${payment.recipientCompany}`,
         purposeOfPayment: 'payment_for_goods',
         metadata: {
@@ -302,7 +317,18 @@ const sendToReapPaymentAPI = async (payment) => {
       }
     };
 
-    console.log('Sending payload to Reap API:', JSON.stringify(payload, null, 2));
+    // Store payload snapshot for debugging
+    payment.reapPayloadSnapshot = payload;
+    await payment.save();
+
+    console.log('[REAP DEBUG] Reap API URL:', reapPaymentUrl);
+    console.log('[REAP DEBUG] Request headers (excluding secrets):', {
+      'Content-Type': 'application/json;schema=PAAS',
+      'Accept': 'application/vnd.api+json; version=1.0.0',
+      'x-reap-api-key': '[PRESENT]',
+      'x-reap-entity-id': '[PRESENT]'
+    });
+    console.log('[REAP DEBUG] Payload snapshot:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(reapPaymentUrl, {
       method: 'POST',
@@ -316,15 +342,27 @@ const sendToReapPaymentAPI = async (payment) => {
     });
 
     const responseData = await response.json();
-    console.log('Reap API response:', response.status, responseData);
+
+    // Store response snapshot
+    payment.reapResponseSnapshot = {
+      status: response.status,
+      statusText: response.statusText,
+      data: responseData,
+      timestamp: new Date().toISOString()
+    };
+    await payment.save();
+
+    console.log('[REAP DEBUG] Reap API response status:', response.status);
+    console.log('[REAP DEBUG] Reap API response data:', JSON.stringify(responseData, null, 2));
 
     if (response.ok) {
       // Update payment with API response
       payment.reapPaymentId = responseData.paymentId;
       payment.reapStatus = 'sent';
       payment.reapRawResponse = responseData;
+      payment.status = 'submitted_to_reap'; // Update status to reflect successful submission
       await payment.save();
-      console.log('Payment successfully sent to Reap API:', payment.reapPaymentId);
+      console.log('[REAP DEBUG] Payment successfully sent to Reap API:', payment.reapPaymentId);
     } else {
       // Handle API error
       const errorMessage = responseData.message || `HTTP ${response.status}: ${response.statusText}`;
@@ -332,11 +370,12 @@ const sendToReapPaymentAPI = async (payment) => {
       payment.reapErrorMessage = errorMessage;
       payment.reapRawResponse = responseData;
       await payment.save();
+      console.error('[REAP DEBUG] Reap API error:', errorMessage);
       throw new Error(`Reap API error: ${errorMessage}`);
     }
 
   } catch (error) {
-    console.error('Send to Reap Payment API error:', error);
+    console.error('[REAP DEBUG] Send to Reap Payment API error:', error.message);
 
     // Update payment status to failed
     payment.reapStatus = 'failed';
@@ -477,6 +516,8 @@ const getAllPayments = async (req, res) => {
  * @param {Object} res - Express response object
  */
 const reviewPayment = async (req, res) => {
+  console.log(`[REVIEW DEBUG] Starting reviewPayment for paymentId: ${req.params.paymentId}, action: ${req.body.action}, adminId: ${req.user._id}`);
+
   try {
     const { paymentId } = req.params;
     const { action, rejectionReason } = req.body;
@@ -484,6 +525,7 @@ const reviewPayment = async (req, res) => {
 
     // Validate action
     if (!['approve', 'reject'].includes(action)) {
+      console.log(`[REVIEW DEBUG] Invalid action: ${action}`);
       return res.status(400).json({
         success: false,
         message: 'Invalid action. Must be "approve" or "reject"'
@@ -492,6 +534,7 @@ const reviewPayment = async (req, res) => {
 
     // Validate rejection reason if rejecting
     if (action === 'reject' && (!rejectionReason || rejectionReason.trim().length === 0)) {
+      console.log(`[REVIEW DEBUG] Missing rejection reason for reject action`);
       return res.status(400).json({
         success: false,
         message: 'Rejection reason is required when rejecting a payment'
@@ -499,16 +542,21 @@ const reviewPayment = async (req, res) => {
     }
 
     // Find and update payment
+    console.log(`[REVIEW DEBUG] Finding payment ${paymentId}`);
     const payment = await Payment.findById(paymentId);
 
     if (!payment) {
+      console.log(`[REVIEW DEBUG] Payment ${paymentId} not found`);
       return res.status(404).json({
         success: false,
         message: 'Payment request not found'
       });
     }
 
+    console.log(`[REVIEW DEBUG] Payment found with status: ${payment.status}`);
+
     if (payment.status !== 'pending_admin_approval') {
+      console.log(`[REVIEW DEBUG] Payment status is ${payment.status}, not pending_admin_approval`);
       return res.status(400).json({
         success: false,
         message: 'Payment request has already been reviewed'
@@ -516,7 +564,9 @@ const reviewPayment = async (req, res) => {
     }
 
     // Update payment
-    payment.status = action === 'approve' ? 'approved' : 'rejected';
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    console.log(`[REVIEW DEBUG] Updating payment status from ${payment.status} to ${newStatus}`);
+    payment.status = newStatus;
     payment.approvedBy = adminId;
     payment.approvedAt = new Date();
 
@@ -525,21 +575,28 @@ const reviewPayment = async (req, res) => {
     }
 
     await payment.save();
+    console.log(`[REVIEW DEBUG] Payment saved with new status: ${payment.status}`);
 
     // If approved, send to Reap Payment API
     let reapStatus = null;
     let reapError = null;
     if (action === 'approve') {
+      console.log(`[REVIEW DEBUG] Action is approve, calling sendToReapPaymentAPI`);
       try {
         await sendToReapPaymentAPI(payment);
         reapStatus = 'success';
+        console.log(`[REVIEW DEBUG] Reap API call successful`);
       } catch (error) {
-        console.error('Failed to send to Reap API:', error);
+        console.error('[REVIEW DEBUG] Failed to send to Reap API:', error);
         reapStatus = 'failed';
         reapError = error.message;
         // Don't fail the approval if Reap API fails
       }
+    } else {
+      console.log(`[REVIEW DEBUG] Action is ${action}, skipping Reap API call`);
     }
+
+    console.log(`[REVIEW DEBUG] Sending response with reapStatus: ${reapStatus}, reapError: ${reapError ? 'present' : 'null'}`);
 
     res.status(200).json({
       success: true,
@@ -555,7 +612,7 @@ const reviewPayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Review payment error:', error);
+    console.error('[REVIEW DEBUG] Review payment error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while reviewing payment'
