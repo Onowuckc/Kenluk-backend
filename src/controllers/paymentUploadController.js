@@ -96,8 +96,6 @@ const submitPaymentRequest = async (req, res) => {
       recipientBankCountry,
       recipientAddress,
       recipientBankAddress,
-      bankCode,
-      branchCode,
       invoiceS3Key,
       invoiceBucketName,
       invoiceFileName,
@@ -114,7 +112,7 @@ const submitPaymentRequest = async (req, res) => {
     // Validate required fields
     const requiredFields = [
       'recipientCompany', 'recipientBank', 'recipientBankSwiftCode', 'accountNumber',
-      'recipientBankCountry', 'recipientAddress', 'recipientBankAddress', 'bankCode', 'branchCode',
+      'recipientBankCountry', 'recipientAddress', 'recipientBankAddress',
       'invoiceS3Key', 'invoiceBucketName', 'invoiceFileName', 'invoiceFileSize', 'invoiceMimeType',
       'foreignAmount', 'foreignCurrency', 'localAmount', 'exchangeRate'
     ];
@@ -290,7 +288,7 @@ const sendToReapPaymentAPI = async (payment) => {
             provider: {
               name: payment.recipientBank,
               country: payment.recipientBankCountry,
-              networkIdentifier: network === 'FPS' ? payment.bankCode : payment.recipientBankSwiftCode
+            networkIdentifier: network === 'FPS' ? (payment.bankCode || '004') : payment.recipientBankSwiftCode
             },
             addresses: [
               {
