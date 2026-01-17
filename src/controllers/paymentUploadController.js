@@ -194,8 +194,6 @@ const submitPaymentRequest = async (req, res) => {
       recipientBankCountry: recipientBankCountry.trim(),
       recipientAddress: recipientAddress.trim(),
       recipientBankAddress: recipientBankAddress.trim(),
-      bankCode: bankCode.trim(),
-      branchCode: branchCode.trim(),
       invoiceFileName: invoiceS3Key.split('/').pop(),
       invoiceOriginalFileName: invoiceFileName,
       invoiceS3Key,
