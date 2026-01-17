@@ -321,19 +321,7 @@ const validatePaymentSubmission = [
     .isLength({ min: 10, max: 200 })
     .withMessage('Bank address must be between 10 and 200 characters'),
 
-  body('bankCode')
-    .trim()
-    .notEmpty()
-    .withMessage('Bank code is required')
-    .isLength({ min: 3, max: 10 })
-    .withMessage('Bank code must be between 3 and 10 characters'),
 
-  body('branchCode')
-    .trim()
-    .notEmpty()
-    .withMessage('Branch code is required')
-    .isLength({ min: 3, max: 10 })
-    .withMessage('Branch code must be between 3 and 10 characters'),
 
   body('invoiceS3Key')
     .notEmpty()
