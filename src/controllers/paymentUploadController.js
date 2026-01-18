@@ -267,6 +267,23 @@ const sendToReapPaymentAPI = async (payment) => {
     // FPS only supports HKD or GBP, so use HKD for Hong Kong payments
     const receivingCurrency = payment.recipientBankCountry === 'HK' ? 'HKD' : payment.foreignCurrency;
 
+    // Convert country name to alpha-2 code for Reap API
+    const countryCodeMap = {
+      'China': 'CN',
+      'Hong Kong': 'HK',
+      'Nigeria': 'NG',
+      'United States': 'US',
+      'United Kingdom': 'GB',
+      'Germany': 'DE',
+      'France': 'FR',
+      'Japan': 'JP',
+      'Canada': 'CA',
+      'Australia': 'AU',
+      'Switzerland': 'CH'
+    };
+
+    const providerCountry = countryCodeMap[payment.recipientBankCountry] || payment.recipientBankCountry;
+
     // Build Reap API payload according to Postman collection
     const payload = {
       receivingParty: {
@@ -285,7 +302,7 @@ const sendToReapPaymentAPI = async (payment) => {
             currencies: [receivingCurrency],
             provider: {
               name: payment.recipientBank,
-              country: payment.recipientBankCountry,
+              country: providerCountry,
             networkIdentifier: network === 'FPS' ? (payment.bankCode || '004') : payment.recipientBankSwiftCode
             },
             addresses: [
@@ -293,8 +310,8 @@ const sendToReapPaymentAPI = async (payment) => {
                 type: 'postal',
                 street: payment.recipientBankAddress,
                 city: payment.recipientAddress.split(',')[0]?.trim() || payment.recipientAddress,
-                state: payment.recipientBankCountry,
-                country: payment.recipientBankCountry,
+                state: providerCountry,
+                country: providerCountry,
                 postalCode: '00000' // Default since we don't collect this
               }
             ]
