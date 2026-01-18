@@ -1,6 +1,7 @@
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import Payment from '../models/Payment.js';
+import PlatformSettings from '../models/PlatformSettings.js';
 import s3Client from '../config/s3Client.js';
 import { v4 as uuidv4 } from 'uuid';
 import fetch from 'node-fetch';
@@ -142,6 +143,34 @@ const submitPaymentRequest = async (req, res) => {
       });
     }
 
+    // CRITICAL: Validate exchange rate matches admin-configured rate
+    // Only validate for USD→NGN conversions
+    if (foreignCurrency === 'USD') {
+      let adminSettings = await PlatformSettings.findOne();
+      
+      if (!adminSettings) {
+        return res.status(400).json({
+          success: false,
+          message: 'Exchange rates not configured by platform admin'
+        });
+      }
+
+      // Allow 1% tolerance for floating point differences
+      const tolerance = adminSettings.usdToNgnRate * 0.01;
+      const expectedRate = adminSettings.usdToNgnRate;
+      
+      if (Math.abs(exchangeRate - expectedRate) > tolerance) {
+        return res.status(400).json({
+          success: false,
+          message: `Exchange rate mismatch. Expected rate: ${expectedRate.toFixed(2)}, Provided rate: ${exchangeRate.toFixed(2)}. Rates are set by platform admin and cannot be modified.`,
+          data: {
+            expectedRate: expectedRate,
+            providedRate: exchangeRate
+          }
+        });
+      }
+    }
+
     // Build Reap payload for snapshot
     const reapPayload = {
       receivingParty: {
@@ -198,6 +227,44 @@ const submitPaymentRequest = async (req, res) => {
       invoiceOriginalFileName: invoiceFileName,
       invoiceS3Key,
       invoiceS3Bucket: invoiceBucketName,
+      invoiceFileSize,
+      invoiceMimeType,
+      foreignAmount,
+      foreignCurrency,
+      localAmount,
+      exchangeRate,
+      status: 'pending_admin_approval',
+      reapPayloadSnapshot: reapPayload
+    });
+
+    await payment.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Payment request submitted successfully',
+      data: {
+        paymentId: payment._id,
+        status: payment.status,
+        submittedAt: payment.submittedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Submit payment request error:', error);
+
+    if (error.code === 11000) { // Duplicate key error
+      return res.status(400).json({
+        success: false,
+        message: 'Duplicate payment request'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Server error while submitting payment request'
+    });
+  }
+};
       invoiceFileSize,
       invoiceMimeType,
       foreignAmount,
