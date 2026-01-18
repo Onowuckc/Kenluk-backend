@@ -265,44 +265,6 @@ const submitPaymentRequest = async (req, res) => {
     });
   }
 };
-      invoiceFileSize,
-      invoiceMimeType,
-      foreignAmount,
-      foreignCurrency,
-      localAmount,
-      exchangeRate,
-      status: 'pending_admin_approval',
-      reapPayloadSnapshot: reapPayload
-    });
-
-    await payment.save();
-
-    res.status(201).json({
-      success: true,
-      message: 'Payment request submitted successfully',
-      data: {
-        paymentId: payment._id,
-        status: payment.status,
-        submittedAt: payment.submittedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Submit payment request error:', error);
-
-    if (error.code === 11000) { // Duplicate key error
-      return res.status(400).json({
-        success: false,
-        message: 'Duplicate payment request'
-      });
-    }
-
-    res.status(500).json({
-      success: false,
-      message: 'Server error while submitting payment request'
-    });
-  }
-};
 
 /**
  * Send payment details to Reap Payment API
@@ -954,10 +916,10 @@ const approvePayment = async (req, res) => {
     try {
       await sendToReapPaymentAPI(payment);
       reapStatus = 'success';
-    } catch (reapError) {
-      console.error('Failed to send to Reap API:', reapError);
+    } catch (err) {
+      console.error('Failed to send to Reap API:', err);
       reapStatus = 'failed';
-      reapError = reapError.message;
+      reapError = err.message;
       // Don't fail the approval if Reap API fails
     }
 
