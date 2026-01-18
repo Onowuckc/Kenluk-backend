@@ -7,7 +7,8 @@ import {
   reviewPayment,
   getPaymentById,
   actionPayment,
-  uploadPaymentDocuments
+  uploadPaymentDocuments,
+  completePayment
 } from '../controllers/paymentUploadController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { requireAccountApproval } from '../middleware/accountApproval.js';
@@ -35,5 +36,6 @@ router.get('/:paymentId', getPaymentById);
 router.post('/:paymentId/documents', uploadPaymentDocuments);
 router.put('/:paymentId/review', requireAdmin, validatePaymentReview, reviewPayment);
 router.put('/:paymentId/action', requireAdmin, validatePaymentReview, actionPayment);
+router.put('/:paymentId/complete', requireAdmin, completePayment);
 
 export default router;

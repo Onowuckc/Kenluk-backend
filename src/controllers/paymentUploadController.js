@@ -373,7 +373,7 @@ const sendToReapPaymentAPI = async (payment) => {
       payment.reapPaymentId = responseData.paymentId;
       payment.reapStatus = 'sent';
       payment.reapRawResponse = responseData;
-      payment.status = 'submitted_to_reap'; // Update status to reflect successful submission
+      payment.status = 'processing'; // Update status to processing after successful Reap submission
       await payment.save();
       console.log('[REAP DEBUG] Payment successfully sent to Reap API:', payment.reapPaymentId);
     } else {
@@ -915,6 +915,61 @@ const approvePayment = async (req, res) => {
   }
 };
 
+/**
+ * Complete payment after "reap success"
+ * Allows admins to manually mark payments as completed
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const completePayment = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const adminId = req.user._id;
+
+    // Find payment
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    // Payment can only be completed if it's in processing status
+    if (payment.status !== 'processing') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only payments in processing status can be marked as completed'
+      });
+    }
+
+    // Update payment status to completed
+    payment.status = 'completed';
+    payment.completedBy = adminId;
+    payment.completedAt = new Date();
+
+    await payment.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment marked as completed successfully',
+      data: {
+        paymentId: payment._id,
+        status: payment.status,
+        completedAt: payment.completedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Complete payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while completing payment'
+    });
+  }
+};
+
 export {
   generateInvoiceUploadUrl,
   submitPaymentRequest,
@@ -924,5 +979,6 @@ export {
   getPaymentById,
   actionPayment,
   uploadPaymentDocuments,
-  approvePayment
+  approvePayment,
+  completePayment
 };
