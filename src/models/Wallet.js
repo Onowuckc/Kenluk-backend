@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const walletTransactionSchema = new mongoose.Schema({
     type: {
@@ -218,5 +218,4 @@ walletSchema.methods.getFundingHistory = function (limit = 20, skip = 0) {
 };
 
 const Wallet = mongoose.model('Wallet', walletSchema);
-
-module.exports = Wallet;
+export default Wallet;
