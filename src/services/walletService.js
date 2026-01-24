@@ -499,4 +499,4 @@ class WalletService {
   }
 }
 
-module.exports = WalletService;
+export default WalletService;
