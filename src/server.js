@@ -24,6 +24,7 @@ import kycRoutes from './routes/kyc.js';
 import paymentRoutes from './routes/payments.js';
 import simulationRoutes from './routes/simulations.js';
 import webhookRoutes from './routes/webhooks.js';
+import walletRoutes from './routes/walletRoutes.js';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
@@ -58,6 +59,7 @@ app.use('/api/kyc', kycRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/simulations', simulationRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/wallet', walletRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
