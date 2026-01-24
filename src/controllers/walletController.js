@@ -1,4 +1,4 @@
-const WalletService = require('../services/walletService');
+import * as WalletService from '../services/walletService.js';
 
 /**
  * Get or create wallet for user
@@ -274,7 +274,7 @@ const approvePaymentWithWalletDebit = async (req, res) => {
   }
 };
 
-module.exports = {
+export default {
   initializeWallet,
   getWalletBalance,
   getWalletSummary,

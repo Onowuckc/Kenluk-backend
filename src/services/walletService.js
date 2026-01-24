@@ -1,8 +1,8 @@
-const Wallet = require('../models/Wallet');
-const WalletTransaction = require('../models/WalletTransaction');
-const FidelityPayment = require('../models/FidelityPayment');
-const Payment = require('../models/Payment');
-const PlatformSettings = require('../models/PlatformSettings');
+import Wallet from '../models/Wallet.js';
+import WalletTransaction from '../models/WalletTransaction.js';
+import FidelityPayment from '../models/FidelityPayment.js';
+import Payment from '../models/Payment.js';
+import PlatformSettings from '../models/PlatformSettings.js';
 
 class WalletService {
   /**
