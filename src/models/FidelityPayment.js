@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const fidelityPaymentSchema = new mongoose.Schema(
     {
@@ -180,5 +180,4 @@ fidelityPaymentSchema.methods.updateFromWebhook = function (webhookData) {
 };
 
 const FidelityPayment = mongoose.model('FidelityPayment', fidelityPaymentSchema);
-
-module.exports = FidelityPayment;
+export default FidelityPayment;
