@@ -274,7 +274,8 @@ const approvePaymentWithWalletDebit = async (req, res) => {
   }
 };
 
-export default {
+
+const walletController = {
   initializeWallet,
   getWalletBalance,
   getWalletSummary,
@@ -284,3 +285,5 @@ export default {
   processFidelityPayment,
   approvePaymentWithWalletDebit
 };
+
+export default walletController;
