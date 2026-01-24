@@ -1,6 +1,6 @@
-const express = require('express');
-const { verifyToken } = require('../middleware/auth');
-const walletController = require('../controllers/walletController');
+import express from 'express';
+import { verifyToken } from '../middleware/auth.js';
+import walletController from '../controllers/walletController.js';
 
 const router = express.Router();
 
@@ -28,4 +28,4 @@ router.post('/process-fidelity-payment', verifyToken, walletController.processFi
 // Admin approve payment with wallet debit
 router.post('/approve-payment/:paymentId', verifyToken, walletController.approvePaymentWithWalletDebit);
 
-module.exports = router;
+export default router;
