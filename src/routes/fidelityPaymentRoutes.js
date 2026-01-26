@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticate } from '../middleware/auth.js';
-import fidelityPaymentController from '../controllers/fidelityPaymentController.js';
+import * as fidelityPaymentController from '../controllers/fidelityPaymentController.js';
 
 const router = express.Router();
 
