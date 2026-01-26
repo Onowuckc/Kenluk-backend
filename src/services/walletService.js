@@ -1,4 +1,4 @@
-import Wallet from '../models/Wallet.js';
+ import Wallet from '../models/Wallet.js';
 import WalletTransaction from '../models/WalletTransaction.js';
 import FidelityPayment from '../models/FidelityPayment.js';
 import Payment from '../models/Payment.js';

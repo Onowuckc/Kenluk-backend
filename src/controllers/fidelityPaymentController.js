@@ -1,12 +1,12 @@
-const FidelityPaymentService = require('../services/fidelityPaymentService');
-const FidelityPayment = require('../models/FidelityPayment');
-const { generateRequestRef } = require('../utils/fidelityEncryption');
+import FidelityPaymentService from '../services/fidelityPaymentService.js';
+import FidelityPayment from '../models/FidelityPayment.js';
+import * as fidelityEncryption from '../utils/fidelityEncryption.js';
 
 /**
  * Initialize a payment collection request
  * POST /api/payments/fidelity/initialize
  */
-exports.initializePayment = async (req, res) => {
+export const initializePayment = async (req, res) => {
     try {
         const userId = req.user?.id || req.body.userId;
 
@@ -45,7 +45,7 @@ exports.initializePayment = async (req, res) => {
 
         const transactionRef = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
         const customerRef = `CUST-${userId}-${Date.now()}`;
-        const requestRef = generateRequestRef();
+        const requestRef = fidelityEncryption.generateRequestRef();
 
         // Create payment record in database
         const fidelityPayment = new FidelityPayment({
@@ -147,7 +147,7 @@ exports.initializePayment = async (req, res) => {
  * Query payment status
  * GET /api/payments/fidelity/:transactionRef/status
  */
-exports.getPaymentStatus = async (req, res) => {
+export const getPaymentStatus = async (req, res) => {
     try {
         const { transactionRef } = req.params;
         const userId = req.user?.id;
@@ -216,7 +216,7 @@ exports.getPaymentStatus = async (req, res) => {
  * Get payment history for user
  * GET /api/payments/fidelity/history
  */
-exports.getPaymentHistory = async (req, res) => {
+export const getPaymentHistory = async (req, res) => {
     try {
         const userId = req.user?.id;
         const { status, page = 1, limit = 10 } = req.query;
@@ -277,7 +277,7 @@ exports.getPaymentHistory = async (req, res) => {
  * Handle webhook notification from Fidelity
  * POST /api/payments/fidelity/webhook
  */
-exports.handleWebhook = async (req, res) => {
+export const handleWebhook = async (req, res) => {
     try {
         const webhookData = req.body;
         const signature = req.headers['x-fidelity-signature'];
@@ -341,7 +341,7 @@ exports.handleWebhook = async (req, res) => {
  * Retry payment
  * POST /api/payments/fidelity/:paymentId/retry
  */
-exports.retryPayment = async (req, res) => {
+export const retryPayment = async (req, res) => {
     try {
         const { paymentId } = req.params;
         const userId = req.user?.id;
@@ -428,4 +428,10 @@ exports.retryPayment = async (req, res) => {
     }
 };
 
-module.exports = exports;
+export default {
+  initializePayment,
+  getPaymentStatus,
+  getPaymentHistory,
+  handleWebhook,
+  retryPayment
+};
