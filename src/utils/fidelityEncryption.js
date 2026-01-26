@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 /**
  * Encrypt data using Triple DES encryption for Fidelity API
@@ -73,7 +73,7 @@ function generateRequestRef() {
     return `REQ-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 }
 
-module.exports = {
+export {
     encrypt,
     decrypt,
     generateSignature,
