@@ -1,5 +1,5 @@
-const axios = require('axios');
-const { encrypt, generateSignature, generateRequestRef } = require('../utils/fidelityEncryption');
+import axios from 'axios';
+import * as fidelityEncryption from '../utils/fidelityEncryption.js';
 
 const FIDELITY_API_URL = process.env.FIDELITY_API_URL || 'https://api.paygateplus.ng';
 const FIDELITY_API_KEY = process.env.FIDELITY_API_KEY;
@@ -16,7 +16,7 @@ class FidelityPaymentService {
             throw new Error('Fidelity API credentials not configured');
         }
 
-        const signature = generateSignature(requestRef, FIDELITY_API_SECRET);
+        const signature = fidelityEncryption.generateSignature(requestRef, FIDELITY_API_SECRET);
 
         return {
             'Content-Type': 'application/json',
@@ -52,7 +52,7 @@ class FidelityPaymentService {
                 throw new Error('Missing required payment fields');
             }
 
-            const requestRef = generateRequestRef();
+            const requestRef = fidelityEncryption.generateRequestRef();
 
             const requestBody = {
                 request_ref: requestRef,
@@ -113,7 +113,7 @@ class FidelityPaymentService {
      */
     static async queryPaymentStatus(transactionRef, mockMode = 'inspect') {
         try {
-            const requestRef = generateRequestRef();
+            const requestRef = fidelityEncryption.generateRequestRef();
 
             const requestBody = {
                 request_ref: requestRef,
@@ -194,7 +194,7 @@ class FidelityPaymentService {
     static validateWebhookSignature(signature, payload) {
         try {
             const payloadString = JSON.stringify(payload);
-            const expectedSignature = generateSignature(
+            const expectedSignature = fidelityEncryption.generateSignature(
                 payload.request_ref,
                 FIDELITY_API_SECRET
             );
@@ -206,4 +206,4 @@ class FidelityPaymentService {
     }
 }
 
-module.exports = FidelityPaymentService;
+export default FidelityPaymentService;
