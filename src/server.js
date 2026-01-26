@@ -25,6 +25,7 @@ import paymentRoutes from './routes/payments.js';
 import simulationRoutes from './routes/simulations.js';
 import webhookRoutes from './routes/webhooks.js';
 import walletRoutes from './routes/walletRoutes.js';
+import fidelityPaymentRoutes from './routes/fidelityPaymentRoutes.js';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
@@ -57,6 +58,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/rates', ratesRoutes);
 app.use('/api/kyc', kycRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/payments/fidelity', fidelityPaymentRoutes);
 app.use('/api/simulations', simulationRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/wallet', walletRoutes);
