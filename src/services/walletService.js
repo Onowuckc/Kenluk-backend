@@ -463,20 +463,26 @@ class WalletService {
    */
   static async getWalletSummary(userId) {
     try {
+      const wallet = await Wallet.findOne({ userId });
+
+      if (!wallet) {
+        throw new Error('Wallet not found for user');
+      }
+
       const balance = await this.getWalletBalance(userId);
       const recentTransactions = await WalletTransaction.find({
-        userId
+        walletId: wallet._id
       })
         .sort({ createdAt: -1 })
         .limit(5);
 
       const totalFunded = await WalletTransaction.aggregate([
-        { $match: { userId, type: 'credit' } },
+        { $match: { walletId: wallet._id, type: 'credit' } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]);
 
       const totalUsed = await WalletTransaction.aggregate([
-        { $match: { userId, type: 'debit' } },
+        { $match: { walletId: wallet._id, type: 'debit' } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]);
 

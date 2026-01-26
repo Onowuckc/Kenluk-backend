@@ -64,7 +64,7 @@ export const initializePayment = async (req, res) => {
             },
             paymentMethod,
             status: 'Pending',
-            metadata: new Map(Object.entries(metadata)),
+            metadata: metadata,
             initiatedAt: new Date()
         });
 
