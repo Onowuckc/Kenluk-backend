@@ -1,31 +1,32 @@
-const express = require('express');
+import express from 'express';
+import { authenticate } from '../middleware/auth.js';
+import fidelityPaymentController from '../controllers/fidelityPaymentController.js';
+
 const router = express.Router();
-const fidelityPaymentController = require('../controllers/fidelityPaymentController');
-const { verifyToken } = require('../middleware/auth'); // Adjust path based on your auth middleware
 
 /**
  * Initialize a payment collection request
  * POST /api/payments/fidelity/initialize
  */
-router.post('/initialize', verifyToken, fidelityPaymentController.initializePayment);
+router.post('/initialize', authenticate, fidelityPaymentController.initializePayment);
 
 /**
  * Get payment status
  * GET /api/payments/fidelity/:transactionRef/status
  */
-router.get('/:transactionRef/status', verifyToken, fidelityPaymentController.getPaymentStatus);
+router.get('/:transactionRef/status', authenticate, fidelityPaymentController.getPaymentStatus);
 
 /**
  * Get payment history
  * GET /api/payments/fidelity/history
  */
-router.get('/history', verifyToken, fidelityPaymentController.getPaymentHistory);
+router.get('/history', authenticate, fidelityPaymentController.getPaymentHistory);
 
 /**
  * Retry payment
  * POST /api/payments/fidelity/:paymentId/retry
  */
-router.post('/:paymentId/retry', verifyToken, fidelityPaymentController.retryPayment);
+router.post('/:paymentId/retry', authenticate, fidelityPaymentController.retryPayment);
 
 /**
  * Webhook handler for Fidelity notifications
@@ -34,4 +35,4 @@ router.post('/:paymentId/retry', verifyToken, fidelityPaymentController.retryPay
  */
 router.post('/webhook', fidelityPaymentController.handleWebhook);
 
-module.exports = router;
+export default router;
