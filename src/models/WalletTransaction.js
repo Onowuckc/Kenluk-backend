@@ -30,6 +30,14 @@ const WalletTransactionSchema = new mongoose.Schema({
   reference: {
     type: String
   },
+  previousBalance: {
+    type: Number,
+    default: 0
+  },
+  newBalance: {
+    type: Number,
+    default: 0
+  },
   metadata: {
     type: Object
   }
