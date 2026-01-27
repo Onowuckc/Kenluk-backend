@@ -111,142 +111,94 @@ const fundReapAccount = async (usdtAmount) => {
 };
 
 /**
- * Handle Fidelity Bank webhook for NGN payment notifications
+ * Handle PayGate Plus webhook for NGN payment notifications
  * @param {Object} req - Express request
  * @param {Object} res - Express response
  */
 const handleFidelityWebhook = async (req, res) => {
   try {
-    // Get raw body for signature verification
-    const rawBody = JSON.stringify(req.body);
-    const signature = req.headers['x-fidelity-signature'];
-
-    // Verify webhook signature
-    if (!signature || !verifyFidelitySignature(rawBody, signature)) {
-      console.warn('⚠️ Invalid webhook signature');
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid webhook signature'
-      });
-    }
-
-    // Extract webhook data
+    // Extract webhook data from PayGate Plus
     const {
-      transactionId,      // Unique transaction ID from Fidelity
-      amount,             // NGN amount received
-      currency,           // Should be 'NGN'
-      status,             // 'success', 'failed', 'pending'
-      customerReference,  // Link to user/payment (custom field)
-      timestamp,          // When transaction occurred
-      description         // Payment description
+      status,             // 'successful', 'failed', 'pending'
+      transaction_ref,    // Transaction reference we sent
+      amount,             // Amount in kobo
+      customer,           // Customer details
+      metadata            // Additional data
     } = req.body;
 
-    // Validate required fields
-    if (!transactionId || !amount || status !== 'success') {
-      console.warn('⚠️ Invalid webhook payload or non-success status');
+    console.log(`💰 Processing PayGate Plus webhook: ${transaction_ref} - Status: ${status}`);
+
+    // Only process successful payments
+    if (status !== 'successful') {
+      console.log(`⚠️ Ignoring non-successful webhook status: ${status}`);
       return res.status(200).json({
         success: true,
-        message: 'Webhook received but not processed'
+        message: 'Webhook received but not processed (non-success status)'
       });
     }
 
-    if (currency !== 'NGN') {
-      console.warn('⚠️ Non-NGN currency received:', currency);
-      return res.status(400).json({
-        success: false,
-        message: 'Only NGN transactions are supported'
-      });
-    }
+    // Find the Fidelity payment record
+    const fidelityPayment = await FidelityPayment.findOne({ transactionRef: transaction_ref });
 
-    console.log(`💰 Processing Fidelity webhook: ${transactionId} - ${amount} NGN`);
-
-    // Parse customerReference to find user/payment
-    // Format: paymentId or userId
-    let paymentRecord = null;
-    let user = null;
-
-    if (customerReference) {
-      // Try to find payment record first
-      paymentRecord = await Payment.findById(customerReference);
-      if (!paymentRecord) {
-        // Try to find user
-        user = await User.findById(customerReference);
-      } else {
-        user = await User.findById(paymentRecord.userId);
-      }
-    }
-
-    // If no payment/user found, this might be a direct funding request
-    if (!user) {
-      console.warn('⚠️ Could not identify user from webhook data');
+    if (!fidelityPayment) {
+      console.warn(`⚠️ Fidelity payment not found for transaction_ref: ${transaction_ref}`);
       return res.status(200).json({
         success: true,
-        message: 'Webhook received but user not identified'
+        message: 'Webhook received but payment record not found'
       });
     }
 
-    // Step 1: Convert NGN to USDT
-    const { usdtAmount, exchangeRate } = await convertNgnToUsdt(amount);
-    console.log(`📊 Converted: ${amount} NGN → ${usdtAmount} USDT (Rate: ${exchangeRate})`);
-
-    // Step 2: Fund Reap account
-    const reapFunding = await fundReapAccount(usdtAmount);
-    
-    if (!reapFunding.success) {
-      console.error('❌ Reap funding failed:', reapFunding.error);
-      
-      // Log the failed funding attempt but acknowledge webhook
-      if (paymentRecord) {
-        paymentRecord.status = 'failed';
-        paymentRecord.reapErrorMessage = reapFunding.error;
-        await paymentRecord.save();
-      }
-
+    // Check if already processed
+    if (fidelityPayment.status === 'Successful') {
+      console.log(`⚠️ Payment already processed: ${transaction_ref}`);
       return res.status(200).json({
         success: true,
-        message: 'Webhook processed but Reap funding failed'
+        message: 'Payment already processed'
       });
     }
 
-    // Step 3: Update payment record if it exists
-    if (paymentRecord) {
-      paymentRecord.status = 'completed';
-      paymentRecord.processedAt = new Date();
-      paymentRecord.completedAt = new Date();
-      paymentRecord.reapStatus = 'completed';
-      paymentRecord.reapRawResponse = reapFunding.data;
-      await paymentRecord.save();
+    // Update payment record
+    fidelityPayment.status = 'Successful';
+    fidelityPayment.completedAt = new Date();
+    fidelityPayment.fidelityResponse = {
+      statusFromAPI: status,
+      message: 'Payment completed successfully',
+      amount: amount / 100, // Convert from kobo to NGN
+      customer,
+      metadata
+    };
 
-      console.log(`✅ Payment record updated: ${paymentRecord._id}`);
-    }
+    await fidelityPayment.save();
 
-    // Log the successful funding event
-    console.log(`✅ NGN Funding Complete:
-      Transaction ID: ${transactionId}
-      User: ${user._id}
-      NGN Amount: ${amount}
-      USDT Funded: ${usdtAmount}
-      Exchange Rate: ${exchangeRate}
-      Timestamp: ${timestamp}`);
+    // Credit wallet with NGN amount
+    const WalletService = (await import('../services/walletService.js')).WalletService;
+    const creditAmount = amount / 100; // Convert from kobo to NGN
+
+    await WalletService.creditWallet(
+      fidelityPayment.userId,
+      creditAmount,
+      `Wallet funding - PayGate Plus Payment ${transaction_ref}`,
+      fidelityPayment._id
+    );
+
+    console.log(`✅ Wallet credited: User ${fidelityPayment.userId} - ₦${creditAmount}`);
 
     // Acknowledge successful webhook processing
     res.status(200).json({
       success: true,
       message: 'Webhook processed successfully',
       data: {
-        transactionId,
-        ngnAmount: amount,
-        usdtFunded: usdtAmount,
-        exchangeRate,
-        reapResponse: reapFunding.data
+        transactionRef: transaction_ref,
+        status: 'successful',
+        amount: creditAmount,
+        userId: fidelityPayment.userId
       }
     });
 
   } catch (error) {
     console.error('❌ Webhook processing error:', error.message);
-    
+
     // Always return 200 to acknowledge webhook receipt
-    // (Fidelity will retry on non-200 responses)
     res.status(200).json({
       success: false,
       message: 'Webhook processing error',

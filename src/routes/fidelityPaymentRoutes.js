@@ -5,10 +5,10 @@ import * as fidelityPaymentController from '../controllers/fidelityPaymentContro
 const router = express.Router();
 
 /**
- * Initialize a payment collection request
- * POST /api/payments/fidelity/initialize
+ * Send an invoice for payment collection
+ * POST /api/payments/fidelity/send-invoice
  */
-router.post('/initialize', authenticate, fidelityPaymentController.initializePayment);
+router.post('/send-invoice', authenticate, fidelityPaymentController.sendInvoice);
 
 /**
  * Get payment status

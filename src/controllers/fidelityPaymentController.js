@@ -3,10 +3,10 @@ import FidelityPayment from '../models/FidelityPayment.js';
 import * as fidelityEncryption from '../utils/fidelityEncryption.js';
 
 /**
- * Initialize a payment collection request
- * POST /api/payments/fidelity/initialize
+ * Send an invoice for payment collection
+ * POST /api/payments/fidelity/send-invoice
  */
-export const initializePayment = async (req, res) => {
+export const sendInvoice = async (req, res) => {
     try {
         const userId = req.user?.id || req.body.userId;
 
@@ -24,7 +24,6 @@ export const initializePayment = async (req, res) => {
             customerLastName,
             customerEmail,
             customerMobile,
-            paymentMethod = 'bank_account',
             metadata = {}
         } = req.body;
 
@@ -43,14 +42,12 @@ export const initializePayment = async (req, res) => {
             });
         }
 
-        const transactionRef = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-        const customerRef = `CUST-${userId}-${Date.now()}`;
-        const requestRef = fidelityEncryption.generateRequestRef();
+        const transactionRef = `KNL-WALLET-${Date.now()}`;
+        const callbackUrl = `${process.env.BASE_URL || 'https://kenluk-backend-production.up.railway.app'}/api/payments/fidelity/webhook`;
 
         // Create payment record in database
         const fidelityPayment = new FidelityPayment({
             transactionRef,
-            requestRef,
             userId,
             amount,
             currency: 'NGN',
@@ -59,10 +56,8 @@ export const initializePayment = async (req, res) => {
                 firstName: customerFirstName,
                 lastName: customerLastName,
                 email: customerEmail,
-                phone: customerMobile,
-                customerRef
+                phone: customerMobile
             },
-            paymentMethod,
             status: 'Pending',
             metadata: metadata,
             initiatedAt: new Date()
@@ -71,48 +66,42 @@ export const initializePayment = async (req, res) => {
         // Save to database
         await fidelityPayment.save();
 
-        // Call Fidelity API
-        const paymentResponse = await FidelityPaymentService.processPayment({
+        // Call PayGate Plus API to send invoice
+        const invoiceResponse = await FidelityPaymentService.sendInvoice({
             amount,
             customerEmail,
             customerFirstName,
             customerLastName,
             customerMobile,
-            customerRef,
-            transactionDesc: description,
             transactionRef,
-            authProvider: 'Fidelity',
-            mockMode: process.env.NODE_ENV === 'production' ? 'live' : 'inspect'
+            callbackUrl,
+            metadata
         });
 
-        if (paymentResponse.success) {
-            const responseData = paymentResponse.data.data || {};
+        if (invoiceResponse.success) {
+            const responseData = invoiceResponse.data;
 
             // Update payment record with API response
             fidelityPayment.fidelityResponse = {
-                statusFromAPI: paymentResponse.data.status,
-                message: paymentResponse.data.message,
-                providerResponseCode: responseData.provider_response_code,
-                provider: responseData.provider,
-                chargeToken: responseData.charge_token,
-                errors: responseData.errors || []
+                statusFromAPI: 'success',
+                message: 'Invoice sent successfully',
+                paymentUrl: responseData.payment_url,
+                transactionRef: responseData.transaction_ref
             };
-            fidelityPayment.status = paymentResponse.data.status;
+            fidelityPayment.status = 'InvoiceSent';
 
             await fidelityPayment.save();
 
             return res.status(200).json({
                 success: true,
-                message: 'Payment initialized successfully',
+                message: 'Invoice sent successfully',
                 data: {
                     paymentId: fidelityPayment._id,
                     transactionRef,
-                    requestRef,
-                    chargeToken: responseData.charge_token,
-                    status: paymentResponse.data.status,
+                    paymentUrl: responseData.payment_url,
+                    status: 'InvoiceSent',
                     amount,
-                    message: paymentResponse.data.message,
-                    paymentOptions: responseData.paymentoptions || []
+                    message: 'Redirect user to payment URL to complete payment'
                 }
             });
         } else {
@@ -120,24 +109,26 @@ export const initializePayment = async (req, res) => {
             fidelityPayment.status = 'Failed';
             fidelityPayment.fidelityResponse = {
                 statusFromAPI: 'Failed',
-                message: paymentResponse.error?.message || 'Payment initialization failed',
-                mainError: JSON.stringify(paymentResponse.error)
+                message: invoiceResponse.error?.message || 'Invoice sending failed',
+                mainError: JSON.stringify(invoiceResponse.error)
             };
 
             await fidelityPayment.save();
 
-            return res.status(paymentResponse.statusCode).json({
+            console.error('Invoice sending failed:', invoiceResponse.error);
+
+            return res.status(invoiceResponse.statusCode).json({
                 success: false,
-                message: 'Failed to initialize payment',
-                error: paymentResponse.error,
+                message: 'Failed to send invoice',
+                error: invoiceResponse.error,
                 paymentId: fidelityPayment._id
             });
         }
     } catch (error) {
-        console.error('Payment initialization error:', error);
+        console.error('Invoice sending error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error initializing payment',
+            message: 'Error sending invoice',
             error: error.message
         });
     }
@@ -372,50 +363,49 @@ export const retryPayment = async (req, res) => {
 
         await payment.save();
 
-        // Retry payment
-        const paymentResponse = await FidelityPaymentService.processPayment({
+        // Retry invoice sending
+        const callbackUrl = `${process.env.BASE_URL || 'https://kenluk-backend-production.up.railway.app'}/api/payments/fidelity/webhook`;
+
+        const invoiceResponse = await FidelityPaymentService.sendInvoice({
             amount: payment.amount,
             customerEmail: payment.customer.email,
             customerFirstName: payment.customer.firstName,
             customerLastName: payment.customer.lastName,
             customerMobile: payment.customer.phone,
-            customerRef: payment.customer.customerRef,
-            transactionDesc: payment.description,
             transactionRef: payment.transactionRef,
-            authProvider: 'Fidelity',
-            mockMode: process.env.NODE_ENV === 'production' ? 'live' : 'inspect'
+            callbackUrl,
+            metadata: payment.metadata
         });
 
-        if (paymentResponse.success) {
-            const responseData = paymentResponse.data.data || {};
+        if (invoiceResponse.success) {
+            const responseData = invoiceResponse.data;
 
             payment.fidelityResponse = {
-                statusFromAPI: paymentResponse.data.status,
-                message: paymentResponse.data.message,
-                providerResponseCode: responseData.provider_response_code,
-                provider: responseData.provider,
-                chargeToken: responseData.charge_token,
-                errors: responseData.errors || []
+                statusFromAPI: 'success',
+                message: 'Invoice resent successfully',
+                paymentUrl: responseData.payment_url,
+                transactionRef: responseData.transaction_ref
             };
-            payment.status = paymentResponse.data.status;
+            payment.status = 'InvoiceSent';
 
             await payment.save();
 
             return res.status(200).json({
                 success: true,
-                message: 'Payment retry successful',
+                message: 'Invoice retry successful',
                 data: {
                     paymentId: payment._id,
                     transactionRef: payment.transactionRef,
-                    status: payment.status,
+                    paymentUrl: responseData.payment_url,
+                    status: 'InvoiceSent',
                     retryCount: payment.retryCount
                 }
             });
         } else {
-            return res.status(paymentResponse.statusCode).json({
+            return res.status(invoiceResponse.statusCode).json({
                 success: false,
-                message: 'Payment retry failed',
-                error: paymentResponse.error
+                message: 'Invoice retry failed',
+                error: invoiceResponse.error
             });
         }
     } catch (error) {

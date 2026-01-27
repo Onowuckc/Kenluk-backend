@@ -27,11 +27,11 @@ class FidelityPaymentService {
     }
 
     /**
-     * Process a payment collection request
-     * @param {object} paymentData - Payment details
-     * @returns {Promise<object>} Response from Fidelity API
+     * Send an invoice for payment collection
+     * @param {object} invoiceData - Invoice details
+     * @returns {Promise<object>} Response from PayGate Plus API
      */
-    static async processPayment(paymentData) {
+    static async sendInvoice(invoiceData) {
         try {
             const {
                 amount,
@@ -39,51 +39,42 @@ class FidelityPaymentService {
                 customerFirstName,
                 customerLastName,
                 customerMobile,
-                customerRef,
-                transactionDesc,
                 transactionRef,
-                authProvider = 'Fidelity',
-                mockMode = 'inspect' // 'inspect' for test, 'live' for production
-            } = paymentData;
+                callbackUrl,
+                metadata = {}
+            } = invoiceData;
 
             // Validate required fields
-            if (!amount || !customerEmail || !customerFirstName || !customerLastName || 
-                !customerMobile || !customerRef || !transactionDesc || !transactionRef) {
-                throw new Error('Missing required payment fields');
+            if (!amount || !customerEmail || !customerFirstName || !customerLastName ||
+                !customerMobile || !transactionRef || !callbackUrl) {
+                throw new Error('Missing required invoice fields');
             }
 
-            const requestRef = fidelityEncryption.generateRequestRef();
-
             const requestBody = {
-                request_ref: requestRef,
-                request_type: 'collect',
-                auth: {
-                    type: 'bank.account',
-                    auth_provider: authProvider
+                amount: Math.floor(amount * 100), // Convert to kobo
+                currency: 'NGN',
+                transaction_ref: transactionRef,
+                customer: {
+                    email: customerEmail,
+                    first_name: customerFirstName,
+                    last_name: customerLastName,
+                    phone: customerMobile
                 },
-                transaction: {
-                    amount: Math.floor(amount * 100), // Convert to kobo
-                    transaction_ref: transactionRef,
-                    transaction_desc: transactionDesc,
-                    customer: {
-                        customer_ref: customerRef,
-                        firstname: customerFirstName,
-                        surname: customerLastName,
-                        email: customerEmail,
-                        mobile_no: customerMobile
-                    },
-                    mock_mode: mockMode,
-                    meta: {
-                        app: 'kenluk-payment',
-                        timestamp: new Date().toISOString()
-                    }
+                callback_url: callbackUrl,
+                metadata: {
+                    purpose: 'wallet_funding',
+                    ...metadata
                 }
             };
 
-            const headers = this.createHeaders(requestRef);
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${FIDELITY_API_KEY}`,
+                'Signature': fidelityEncryption.generateSignature(JSON.stringify(requestBody), FIDELITY_API_SECRET)
+            };
 
             const response = await axios.post(
-                `${FIDELITY_API_URL}/transactions/collect`,
+                `${FIDELITY_API_URL}/v2/transact`,
                 requestBody,
                 { headers, timeout: 30000 }
             );
@@ -92,7 +83,6 @@ class FidelityPaymentService {
                 success: response.status === 200,
                 statusCode: response.status,
                 data: response.data,
-                requestRef,
                 timestamp: new Date().toISOString()
             };
         } catch (error) {
