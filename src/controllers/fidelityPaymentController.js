@@ -419,7 +419,7 @@ export const retryPayment = async (req, res) => {
 };
 
 export default {
-  initializePayment,
+  sendInvoice,
   getPaymentStatus,
   getPaymentHistory,
   handleWebhook,
