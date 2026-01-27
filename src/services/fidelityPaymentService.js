@@ -206,4 +206,5 @@ class FidelityPaymentService {
     }
 }
 
+export { FidelityPaymentService };
 export default FidelityPaymentService;

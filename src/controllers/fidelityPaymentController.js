@@ -1,4 +1,4 @@
-import * as FidelityPaymentService from '../services/fidelityPaymentService.js';
+import FidelityPaymentService from '../services/FidelityPaymentService.js';
 import FidelityPayment from '../models/FidelityPayment.js';
 import * as fidelityEncryption from '../utils/fidelityEncryption.js';
 

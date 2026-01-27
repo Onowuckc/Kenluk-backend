@@ -505,4 +505,5 @@ class WalletService {
   }
 }
 
+export { WalletService };
 export default WalletService;

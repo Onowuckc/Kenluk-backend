@@ -1,4 +1,4 @@
-import * as WalletService from '../services/walletService.js';
+import WalletService from '../services/walletService.js';
 
 /**
  * Get or create wallet for user
