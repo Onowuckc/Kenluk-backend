@@ -463,10 +463,16 @@ class WalletService {
    */
   static async getWalletSummary(userId) {
     try {
-      const wallet = await Wallet.findOne({ userId });
+      let wallet = await Wallet.findOne({ userId });
 
       if (!wallet) {
-        throw new Error('Wallet not found for user');
+        wallet = new Wallet({
+          userId,
+          balance: 0,
+          currency: 'NGN',
+          status: 'active'
+        });
+        await wallet.save();
       }
 
       const balance = await this.getWalletBalance(userId);
