@@ -109,7 +109,7 @@ class FidelityPaymentService {
             const headers = this.createHeaders(requestRef);
 
             const response = await axios.post(
-                `${FIDELITY_API_URL}/send-invoice`,
+                `${FIDELITY_API_URL}/v2/transact`,
                 requestBody,
                 { headers, timeout: 30000 }
             );
