@@ -11,12 +11,12 @@ class FidelityPaymentService {
      * @param {string} requestRef - Unique request reference
      * @returns {object} Headers object
      */
-    static createHeaders(requestRef, amount, currency, redirectUrl) {
+    static createHeaders(requestRef) {
         if (!FIDELITY_API_KEY || !FIDELITY_API_SECRET) {
             throw new Error('Fidelity API credentials not configured');
         }
 
-        const signature = fidelityEncryption.generateSignature(requestRef, amount, currency, redirectUrl, FIDELITY_API_SECRET);
+        const signature = fidelityEncryption.generateSignature(requestRef, FIDELITY_API_SECRET);
 
         return {
             'Content-Type': 'application/json',
@@ -76,39 +76,41 @@ class FidelityPaymentService {
 
             const requestRef = fidelityEncryption.generateRequestRef();
 
-            // PaygatePlus Send Invoice API payload structure
+            // PaygatePlus API payload structure
             const requestBody = {
                 request_ref: requestRef,
-                amount: Math.floor(amount * 100), // Convert to kobo
-                currency: 'NGN',
-                description: metadata.description || 'Wallet funding',
-                customer: {
-                    name: `${customerFirstName} ${customerLastName}`,
-                    email: customerEmail,
-                    phone: cleanPhone // Use cleaned phone number
+                request_type: 'collect',
+                auth: {
+                    type: 'bank.account',
+                    secure: '', // This might need to be populated based on API docs
+                    auth_provider: 'Fidelity'
                 },
-                payment_methods: [
-                    'bank_account',
-                    'card',
-                    'mobile_money'
-                ],
-                callback_url: callbackUrl,
-                redirect_url: redirectUrl || callbackUrl,
-                meta: {
-                    app: 'kenluk-payment',
-                    purpose: 'wallet_funding',
+                transaction: {
+                    amount: Math.floor(amount * 100), // Amount in kobo
                     transaction_ref: transactionRef,
-                    ...metadata
+                    transaction_desc: metadata.description || 'Wallet funding',
+                    'transaction_ref-parent': transactionRef,
+                    customer: {
+                        customer_ref: transactionRef,
+                        firstname: customerFirstName,
+                        surname: customerLastName,
+                        email: customerEmail,
+                        mobile_no: cleanPhone
+                    },
+                    meta: {
+                        app: 'kenluk-payment',
+                        purpose: 'wallet_funding',
+                        ...metadata
+                    },
+                    details: {
+                        callback_url: callbackUrl,
+                        redirect_url: redirectUrl || callbackUrl
+                    }
                 }
             };
 
             // PaygatePlus Send Invoice API headers
-            const headers = {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${FIDELITY_API_KEY}`,
-                'Signature': fidelityEncryption.generateSignature(requestRef, FIDELITY_API_SECRET),
-                'request-ref': requestRef
-            };
+            const headers = this.createHeaders(requestRef, requestBody.amount, requestBody.currency, requestBody.redirect_url);
 
             const response = await axios.post(
                 `${FIDELITY_API_URL}/v2/transact`,
