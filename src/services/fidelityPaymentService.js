@@ -7,22 +7,22 @@ const FIDELITY_API_SECRET = process.env.FIDELITY_WEBHOOK_SECRET;
 
 class FidelityPaymentService {
     /**
-     * Create headers for Fidelity API request
+     * Create headers for PaygatePlus API request
      * @param {string} requestRef - Unique request reference
      * @returns {object} Headers object
      */
     static createHeaders(requestRef) {
         if (!FIDELITY_API_KEY || !FIDELITY_API_SECRET) {
-            throw new Error('Fidelity API credentials not configured');
+            throw new Error('PaygatePlus API credentials not configured');
         }
 
-        const signature = fidelityEncryption.generateSignature(requestRef, FIDELITY_API_SECRET);
+        // PaygatePlus signature: md5(request_ref + secret)
+        const signature = fidelityEncryption.generatePaygateSignature(requestRef, FIDELITY_API_SECRET);
 
         return {
-            'Content-Type': 'application/json',
             'Authorization': `Bearer ${FIDELITY_API_KEY}`,
             'Signature': signature,
-            'request-ref': requestRef
+            'Content-Type': 'application/json'
         };
     }
 
@@ -40,25 +40,19 @@ class FidelityPaymentService {
                 customerLastName,
                 customerMobile,
                 transactionRef,
-                callbackUrl,
-                redirectUrl,
+                paymentMethod = 'card', // Default to card
                 metadata = {}
             } = paymentData;
 
             // Validate required fields
             if (!amount || !customerEmail || !customerFirstName || !customerLastName ||
-                !customerMobile || !transactionRef || !callbackUrl) {
+                !customerMobile || !transactionRef) {
                 throw new Error('Missing required payment fields');
             }
 
             // Validate amount
             if (amount <= 0) {
                 throw new Error('Amount must be greater than 0');
-            }
-
-            // Ensure amount is integer (in kobo)
-            if (!Number.isInteger(amount)) {
-                throw new Error('Amount must be an integer (in kobo)');
             }
 
             // Validate email format
@@ -76,44 +70,46 @@ class FidelityPaymentService {
 
             const requestRef = fidelityEncryption.generateRequestRef();
 
-            // PaygatePlus API payload structure
+            // Map payment method to PaygatePlus configuration
+            const paymentConfig = this.resolvePaymentConfig(paymentMethod);
+
+            // PaygatePlus API payload structure (EXACT format required)
             const requestBody = {
                 request_ref: requestRef,
-                request_type: 'collect',
+                request_type: "send_invoice",
                 auth: {
-                    type: 'bank.account',
-                    secure: '', // This might need to be populated based on API docs
-                    auth_provider: 'Fidelity'
+                    type: null,
+                    secure: null,
+                    auth_provider: paymentConfig.authProvider
                 },
                 transaction: {
-                    amount: Math.floor(amount * 100), // Amount in kobo
+                    mock_mode: process.env.NODE_ENV === 'production' ? 'Live' : 'Live', // Always Live for production
                     transaction_ref: transactionRef,
                     transaction_desc: metadata.description || 'Wallet funding',
-                    'transaction_ref-parent': transactionRef,
+                    transaction_ref_parent: "",
+                    amount: Math.floor(amount * 100), // Amount in kobo
                     customer: {
-                        customer_ref: transactionRef,
+                        customer_ref: cleanPhone,
                         firstname: customerFirstName,
                         surname: customerLastName,
                         email: customerEmail,
                         mobile_no: cleanPhone
                     },
                     meta: {
-                        app: 'kenluk-payment',
-                        purpose: 'wallet_funding',
-                        ...metadata
+                        send_email: true,
+                        currency: "NGN"
                     },
                     details: {
-                        callback_url: callbackUrl,
-                        redirect_url: redirectUrl || callbackUrl
+                        page_slug: paymentConfig.pageSlug
                     }
                 }
             };
 
-            // PaygatePlus Send Invoice API headers
-            const headers = this.createHeaders(requestRef, requestBody.amount, requestBody.currency, requestBody.redirect_url);
+            // PaygatePlus headers (EXACT format required)
+            const headers = this.createHeaders(requestRef);
 
             const response = await axios.post(
-                `${FIDELITY_API_URL}/v2/transact`,
+                `${FIDELITY_API_URL}/send-invoice`,
                 requestBody,
                 { headers, timeout: 30000 }
             );
@@ -131,6 +127,37 @@ class FidelityPaymentService {
                 error: error.response?.data || error.message,
                 timestamp: new Date().toISOString()
             };
+        }
+    }
+
+    /**
+     * Resolve payment method to PaygatePlus configuration
+     * @param {string} paymentMethod - Payment method (card, bank_account, mobile_money)
+     * @returns {object} PaygatePlus configuration
+     */
+    static resolvePaymentConfig(paymentMethod) {
+        switch (paymentMethod) {
+            case "card":
+                return {
+                    authProvider: "PayGatePlusCardService",
+                    pageSlug: "card"
+                };
+            case "bank_account":
+                return {
+                    authProvider: "PaywithAccount",
+                    pageSlug: "bank_account"
+                };
+            case "mobile_money":
+                return {
+                    authProvider: "PayGatePlusMobileMoneyService",
+                    pageSlug: "mobile_money"
+                };
+            default:
+                // Default to card
+                return {
+                    authProvider: "PayGatePlusCardService",
+                    pageSlug: "card"
+                };
         }
     }
 
@@ -153,7 +180,7 @@ class FidelityPaymentService {
                 }
             };
 
-            const headers = this.createHeaders(requestRef, amount, 'NGN', redirectUrl);
+            const headers = this.createHeaders(requestRef);
 
             const response = await axios.post(
                 `${FIDELITY_API_URL}/transactions/query`,

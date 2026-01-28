@@ -24,6 +24,7 @@ export const sendInvoice = async (req, res) => {
             customerLastName,
             customerEmail,
             customerMobile,
+            paymentMethod = 'card', // Default to card
             metadata = {}
         } = req.body;
 
@@ -368,8 +369,7 @@ export const retryPayment = async (req, res) => {
         await payment.save();
 
         // Retry invoice sending
-        const callbackUrl = `${process.env.BASE_URL || 'https://kenluk-backend-production.up.railway.app'}/api/payments/fidelity/webhook`;
-        const redirectUrl = req.body.redirectUrl || callbackUrl; // Frontend redirect URL
+        const paymentMethod = req.body.paymentMethod || 'card'; // Default to card
 
         const invoiceResponse = await FidelityPaymentService.sendInvoice({
             amount: payment.amount,
@@ -378,8 +378,7 @@ export const retryPayment = async (req, res) => {
             customerLastName: payment.customer.lastName,
             customerMobile: payment.customer.phone,
             transactionRef: payment.transactionRef,
-            callbackUrl,
-            redirectUrl,
+            paymentMethod,
             metadata: payment.metadata
         });
 
