@@ -43,11 +43,13 @@ export const sendInvoice = async (req, res) => {
         }
 
         const transactionRef = `KNL-WALLET-${Date.now()}`;
+        const requestRef = fidelityEncryption.generateRequestRef();
         const callbackUrl = `${process.env.BASE_URL || 'https://kenluk-backend-production.up.railway.app'}/api/payments/fidelity/webhook`;
 
         // Create payment record in database
         const fidelityPayment = new FidelityPayment({
             transactionRef,
+            requestRef,
             userId,
             amount,
             currency: 'NGN',
