@@ -8,6 +8,7 @@ import * as fidelityEncryption from '../utils/fidelityEncryption.js';
  */
 export const sendInvoice = async (req, res) => {
     try {
+        console.log('sendInvoice endpoint hit with payload:', req.body);
         const userId = req.user?.id || req.body.userId;
 
         if (!userId) {
