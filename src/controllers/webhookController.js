@@ -138,47 +138,47 @@ const handleFidelityWebhook = async (req, res) => {
     }
 
     // Find the Fidelity payment record
-    const fidelityPayment = await FidelityPayment.findOne({ transactionRef: transaction_ref });
+    const fidelityPayment = await FidelityPayment.findOne({ paygateTransactionRef: transaction_ref });
 
     if (!fidelityPayment) {
-      console.warn(`⚠️ Fidelity payment not found for transaction_ref: ${transaction_ref}`);
-      return res.status(200).json({
-        success: true,
-        message: 'Webhook received but payment record not found'
-      });
+        console.warn(`⚠️ Fidelity payment not found for paygateTransactionRef: ${transaction_ref}`);
+        return res.status(200).json({
+            success: true,
+            message: 'Webhook received but payment record not found'
+        });
     }
 
     // Check if already processed
     if (fidelityPayment.status === 'Successful') {
-      console.log(`⚠️ Payment already processed: ${transaction_ref}`);
-      return res.status(200).json({
-        success: true,
-        message: 'Payment already processed'
-      });
+        console.log(`⚠️ Payment already processed: ${transaction_ref}`);
+        return res.status(200).json({
+            success: true,
+            message: 'Payment already processed'
+        });
     }
 
     // Update payment record
     fidelityPayment.status = 'Successful';
     fidelityPayment.completedAt = new Date();
     fidelityPayment.fidelityResponse = {
-      statusFromAPI: status,
-      message: 'Payment completed successfully',
-      amount: amount / 100, // Convert from kobo to NGN
-      customer,
-      metadata
+        statusFromAPI: status,
+        message: 'Payment completed successfully',
+        amount: amount / 100, // Convert from kobo to NGN
+        customer,
+        metadata
     };
 
     await fidelityPayment.save();
 
-    // Credit wallet with NGN amount
+    // Credit wallet with NGN amount ONLY when status === "Successful"
     const WalletService = (await import('../services/walletService.js')).WalletService;
     const creditAmount = amount / 100; // Convert from kobo to NGN
 
     await WalletService.creditWallet(
-      fidelityPayment.userId,
-      creditAmount,
-      `Wallet funding - PayGate Plus Payment ${transaction_ref}`,
-      fidelityPayment._id
+        fidelityPayment.userId,
+        creditAmount,
+        `Wallet funding - PayGate Plus Payment ${transaction_ref}`,
+        fidelityPayment._id
     );
 
     console.log(`✅ Wallet credited: User ${fidelityPayment.userId} - ₦${creditAmount}`);

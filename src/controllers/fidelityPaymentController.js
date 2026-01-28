@@ -45,6 +45,7 @@ export const sendInvoice = async (req, res) => {
         const transactionRef = `KNL-WALLET-${Date.now()}`;
         const requestRef = fidelityEncryption.generateRequestRef();
         const callbackUrl = `${process.env.BASE_URL || 'https://kenluk-backend-production.up.railway.app'}/api/payments/fidelity/webhook`;
+        const redirectUrl = req.body.redirectUrl || callbackUrl; // Frontend redirect URL
 
         // Create payment record in database
         const fidelityPayment = new FidelityPayment({
@@ -70,13 +71,14 @@ export const sendInvoice = async (req, res) => {
 
         // Call PayGate Plus API to send invoice
         const invoiceResponse = await FidelityPaymentService.sendInvoice({
-            amount,
+            amount: Math.round(amount * 100), // Send amount in kobo as integer
             customerEmail,
             customerFirstName,
             customerLastName,
             customerMobile,
             transactionRef,
             callbackUrl,
+            redirectUrl,
             metadata
         });
 
@@ -367,6 +369,7 @@ export const retryPayment = async (req, res) => {
 
         // Retry invoice sending
         const callbackUrl = `${process.env.BASE_URL || 'https://kenluk-backend-production.up.railway.app'}/api/payments/fidelity/webhook`;
+        const redirectUrl = req.body.redirectUrl || callbackUrl; // Frontend redirect URL
 
         const invoiceResponse = await FidelityPaymentService.sendInvoice({
             amount: payment.amount,
@@ -376,6 +379,7 @@ export const retryPayment = async (req, res) => {
             customerMobile: payment.customer.phone,
             transactionRef: payment.transactionRef,
             callbackUrl,
+            redirectUrl,
             metadata: payment.metadata
         });
 

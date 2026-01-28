@@ -53,12 +53,15 @@ function decrypt(sharedKey, encryptedText) {
 /**
  * Generate MD5 signature for Fidelity API
  * @param {string} requestRef - The unique request reference
+ * @param {number} amount - The amount in kobo (integer)
+ * @param {string} currency - The currency code (e.g., 'NGN')
+ * @param {string} redirectUrl - The redirect URL
  * @param {string} clientSecret - The API secret
  * @returns {string} MD5 hash signature
  */
-function generateSignature(requestRef, clientSecret) {
+function generateSignature(requestRef, amount, currency, redirectUrl, clientSecret) {
     try {
-        const signatureData = `${requestRef};${clientSecret}`;
+        const signatureData = `${requestRef}${amount}${currency}${redirectUrl}${clientSecret}`;
         return crypto.createHash('md5').update(signatureData).digest('hex');
     } catch (error) {
         throw new Error(`Signature generation failed: ${error.message}`);

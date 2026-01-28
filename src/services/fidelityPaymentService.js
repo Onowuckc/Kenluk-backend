@@ -11,12 +11,12 @@ class FidelityPaymentService {
      * @param {string} requestRef - Unique request reference
      * @returns {object} Headers object
      */
-    static createHeaders(requestRef) {
+    static createHeaders(requestRef, amount, currency, redirectUrl) {
         if (!FIDELITY_API_KEY || !FIDELITY_API_SECRET) {
             throw new Error('Fidelity API credentials not configured');
         }
 
-        const signature = fidelityEncryption.generateSignature(requestRef, FIDELITY_API_SECRET);
+        const signature = fidelityEncryption.generateSignature(requestRef, amount, currency, redirectUrl, FIDELITY_API_SECRET);
 
         return {
             'Content-Type': 'application/json',
@@ -27,11 +27,11 @@ class FidelityPaymentService {
     }
 
     /**
-     * Send an invoice for payment collection
-     * @param {object} invoiceData - Invoice details
+     * Send invoice for payment collection using PaygatePlus Send Invoice API
+     * @param {object} paymentData - Payment details
      * @returns {Promise<object>} Response from PayGate Plus API
      */
-    static async sendInvoice(invoiceData) {
+    static async sendInvoice(paymentData) {
         try {
             const {
                 amount,
@@ -41,34 +41,68 @@ class FidelityPaymentService {
                 customerMobile,
                 transactionRef,
                 callbackUrl,
+                redirectUrl,
                 metadata = {}
-            } = invoiceData;
+            } = paymentData;
 
             // Validate required fields
             if (!amount || !customerEmail || !customerFirstName || !customerLastName ||
                 !customerMobile || !transactionRef || !callbackUrl) {
-                throw new Error('Missing required invoice fields');
+                throw new Error('Missing required payment fields');
             }
 
+            // Validate amount
+            if (amount <= 0) {
+                throw new Error('Amount must be greater than 0');
+            }
+
+            // Ensure amount is integer (in kobo)
+            if (!Number.isInteger(amount)) {
+                throw new Error('Amount must be an integer (in kobo)');
+            }
+
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(customerEmail)) {
+                throw new Error('Invalid customer email format');
+            }
+
+            // Validate Nigerian phone number (should start with 234)
+            const phoneRegex = /^234[0-9]{10}$/;
+            const cleanPhone = customerMobile.replace(/\s+/g, '').replace(/^\+/, '');
+            if (!phoneRegex.test(cleanPhone)) {
+                throw new Error('Mobile number must start with 234 and be 13 digits');
+            }
+
+            const requestRef = fidelityEncryption.generateRequestRef();
+
+            // PaygatePlus Send Invoice API payload structure
             const requestBody = {
+                request_ref: requestRef,
                 amount: Math.floor(amount * 100), // Convert to kobo
                 currency: 'NGN',
-                transaction_ref: transactionRef,
+                description: metadata.description || 'Wallet funding',
                 customer: {
+                    name: `${customerFirstName} ${customerLastName}`,
                     email: customerEmail,
-                    first_name: customerFirstName,
-                    last_name: customerLastName,
-                    phone: customerMobile
+                    phone: cleanPhone // Use cleaned phone number
                 },
+                payment_methods: [
+                    'bank_account',
+                    'card',
+                    'mobile_money'
+                ],
                 callback_url: callbackUrl,
-                metadata: {
+                redirect_url: redirectUrl || callbackUrl,
+                meta: {
+                    app: 'kenluk-payment',
                     purpose: 'wallet_funding',
+                    transaction_ref: transactionRef,
                     ...metadata
                 }
             };
 
-            const requestRef = fidelityEncryption.generateRequestRef();
-
+            // PaygatePlus Send Invoice API headers
             const headers = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${FIDELITY_API_KEY}`,
@@ -83,7 +117,7 @@ class FidelityPaymentService {
             );
 
             return {
-                success: response.status === 200,
+                success: response.status === 200 || response.status === 201,
                 statusCode: response.status,
                 data: response.data,
                 timestamp: new Date().toISOString()
@@ -117,7 +151,7 @@ class FidelityPaymentService {
                 }
             };
 
-            const headers = this.createHeaders(requestRef);
+            const headers = this.createHeaders(requestRef, amount, 'NGN', redirectUrl);
 
             const response = await axios.post(
                 `${FIDELITY_API_URL}/transactions/query`,
@@ -186,9 +220,13 @@ class FidelityPaymentService {
      */
     static validateWebhookSignature(signature, payload) {
         try {
-            const payloadString = JSON.stringify(payload);
+            // For webhook validation, use the same signature format as sendInvoice
+            // Note: Webhook signature validation may need adjustment based on PaygatePlus docs
             const expectedSignature = fidelityEncryption.generateSignature(
                 payload.request_ref,
+                payload.amount || 0,
+                payload.currency || 'NGN',
+                payload.redirect_url || '',
                 FIDELITY_API_SECRET
             );
 

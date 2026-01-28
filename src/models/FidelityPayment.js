@@ -14,6 +14,10 @@ const fidelityPaymentSchema = new mongoose.Schema(
             required: true,
             unique: true
         },
+        paygateTransactionRef: {
+            type: String,
+            index: true
+        },
 
         // User reference
         userId: {
