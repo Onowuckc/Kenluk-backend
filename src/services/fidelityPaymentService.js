@@ -67,10 +67,13 @@ class FidelityPaymentService {
                 }
             };
 
+            const requestRef = fidelityEncryption.generateRequestRef();
+
             const headers = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${FIDELITY_API_KEY}`,
-                'Signature': fidelityEncryption.generateSignature(JSON.stringify(requestBody), FIDELITY_API_SECRET)
+                'Signature': fidelityEncryption.generateSignature(requestRef, FIDELITY_API_SECRET),
+                'request-ref': requestRef
             };
 
             const response = await axios.post(
