@@ -56,6 +56,7 @@ const fidelityPaymentSchema = new mongoose.Schema(
             type: String,
             enum: [
                 'Pending',
+                'InvoiceSent',
                 'Processing',
                 'WaitingForOTP',
                 'ProcessingOTP',
