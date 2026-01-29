@@ -25,7 +25,7 @@ export const sendInvoice = async (req, res) => {
             customerLastName,
             customerEmail,
             customerMobile,
-            paymentMethod = 'card', // Default to card
+            paymentMethod = 'bank_account', // Default to bank_account
             metadata = {}
         } = req.body;
 
@@ -73,7 +73,7 @@ export const sendInvoice = async (req, res) => {
 
         // Call PayGate Plus API to send invoice
         const invoiceResponse = await FidelityPaymentService.sendInvoice({
-            amount: Math.round(amount * 100), // Send amount in kobo as integer
+            amount: Math.round(amount * 100), // Convert Naira to kobo
             customerEmail,
             customerFirstName,
             customerLastName,
@@ -87,11 +87,14 @@ export const sendInvoice = async (req, res) => {
         if (invoiceResponse.success) {
             const responseData = invoiceResponse.data;
 
+            // Extract payment URL from response
+            const paymentUrl = responseData?.payment_url || responseData?.data?.payment_url;
+
             // Update payment record with API response
             fidelityPayment.fidelityResponse = {
                 statusFromAPI: 'success',
                 message: 'Invoice sent successfully',
-                paymentUrl: responseData.payment_url,
+                paymentUrl: paymentUrl,
                 transactionRef: responseData.transaction_ref
             };
             fidelityPayment.status = 'InvoiceSent';
@@ -104,7 +107,7 @@ export const sendInvoice = async (req, res) => {
                 data: {
                     paymentId: fidelityPayment._id,
                     transactionRef,
-                    paymentUrl: responseData.payment_url,
+                    paymentUrl: paymentUrl,
                     status: 'InvoiceSent',
                     amount,
                     message: 'Redirect user to payment URL to complete payment'
@@ -370,7 +373,7 @@ export const retryPayment = async (req, res) => {
         await payment.save();
 
         // Retry invoice sending
-        const paymentMethod = req.body.paymentMethod || 'card'; // Default to card
+        const paymentMethod = req.body.paymentMethod || 'bank_account'; // Default to bank_account
 
         const invoiceResponse = await FidelityPaymentService.sendInvoice({
             amount: payment.amount,

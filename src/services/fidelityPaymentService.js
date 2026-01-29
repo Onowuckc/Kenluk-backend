@@ -87,7 +87,7 @@ class FidelityPaymentService {
                     transaction_ref: transactionRef,
                     transaction_desc: metadata.description || 'Wallet funding',
                     transaction_ref_parent: "",
-                    amount: Math.floor(amount * 100), // Amount in kobo
+                    amount: amount, // Amount already in kobo from controller
                     customer: {
                         customer_ref: cleanPhone,
                         firstname: customerFirstName,
@@ -132,16 +132,11 @@ class FidelityPaymentService {
 
     /**
      * Resolve payment method to PaygatePlus configuration
-     * @param {string} paymentMethod - Payment method (card, bank_account, mobile_money)
+     * @param {string} paymentMethod - Payment method (bank_account, mobile_money)
      * @returns {object} PaygatePlus configuration
      */
     static resolvePaymentConfig(paymentMethod) {
         switch (paymentMethod) {
-            case "card":
-                return {
-                    authProvider: "PayGatePlusCardService",
-                    pageSlug: "card"
-                };
             case "bank_account":
                 return {
                     authProvider: "PaywithAccount",
@@ -153,10 +148,10 @@ class FidelityPaymentService {
                     pageSlug: "mobile_money"
                 };
             default:
-                // Default to card
+                // Default to bank_account
                 return {
-                    authProvider: "PayGatePlusCardService",
-                    pageSlug: "card"
+                    authProvider: "PaywithAccount",
+                    pageSlug: "bank_account"
                 };
         }
     }
