@@ -66,14 +66,14 @@ function generateSignature(requestRef, clientSecret) {
 }
 
 /**
- * Generate MD5 signature for PaygatePlus API (request_ref + secret)
+ * Generate MD5 signature for PaygatePlus API (request_ref;client_secret)
  * @param {string} requestRef - The unique request reference
  * @param {string} clientSecret - The API secret
  * @returns {string} MD5 hash signature
  */
 function generatePaygateSignature(requestRef, clientSecret) {
     try {
-        const signatureData = `${requestRef}${clientSecret}`;
+        const signatureData = `${requestRef};${clientSecret}`;
         return crypto.createHash('md5').update(signatureData).digest('hex');
     } catch (error) {
         throw new Error(`PaygatePlus signature generation failed: ${error.message}`);
