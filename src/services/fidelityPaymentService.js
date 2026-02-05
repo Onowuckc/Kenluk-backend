@@ -72,7 +72,7 @@ class FidelityPaymentService {
             // PaygatePlus API payload structure (EXACT format required)
             const requestBody = {
                 request_ref: requestRef,
-                request_type: "send_invoice",
+                request_type: "send invoice",
                 auth: {
                     type: "bank.account",
                     secure: null, // Will be set if encryption is needed
@@ -96,7 +96,7 @@ class FidelityPaymentService {
                         currency: "NGN"
                     },
                     details: {
-                        page_slug: paymentConfig.pageSlug
+                        page_slug: "bank_account"
                     }
                 }
             };
