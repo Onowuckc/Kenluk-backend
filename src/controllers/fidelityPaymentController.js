@@ -25,7 +25,6 @@ export const sendInvoice = async (req, res) => {
             customerLastName,
             customerEmail,
             customerMobile,
-            paymentMethod = 'bank_account', // Default to bank_account
             metadata = {}
         } = req.body;
 

@@ -40,7 +40,6 @@ class FidelityPaymentService {
                 customerLastName,
                 customerMobile,
                 transactionRef,
-                paymentMethod = 'card', // Default to card
                 metadata = {}
             } = paymentData;
 
@@ -70,17 +69,14 @@ class FidelityPaymentService {
 
             const requestRef = fidelityEncryption.generateRequestRef();
 
-            // Map payment method to PaygatePlus configuration
-            const paymentConfig = this.resolvePaymentConfig(paymentMethod);
-
             // PaygatePlus API payload structure (EXACT format required)
             const requestBody = {
                 request_ref: requestRef,
                 request_type: "send_invoice",
                 auth: {
-                    type: null,
-                    secure: null,
-                    auth_provider: paymentConfig.authProvider
+                    type: "bank.account",
+                    secure: null, // Will be set if encryption is needed
+                    auth_provider: "PaywithAccount"
                 },
                 transaction: {
                     mock_mode: process.env.NODE_ENV === 'production' ? 'Live' : 'Live', // Always Live for production
@@ -130,31 +126,7 @@ class FidelityPaymentService {
         }
     }
 
-    /**
-     * Resolve payment method to PaygatePlus configuration
-     * @param {string} paymentMethod - Payment method (bank_account, mobile_money)
-     * @returns {object} PaygatePlus configuration
-     */
-    static resolvePaymentConfig(paymentMethod) {
-        switch (paymentMethod) {
-            case "bank_account":
-                return {
-                    authProvider: "PaywithAccount",
-                    pageSlug: "bank_account"
-                };
-            case "mobile_money":
-                return {
-                    authProvider: "PayGatePlusMobileMoneyService",
-                    pageSlug: "mobile_money"
-                };
-            default:
-                // Default to bank_account
-                return {
-                    authProvider: "PaywithAccount",
-                    pageSlug: "bank_account"
-                };
-        }
-    }
+
 
     /**
      * Query payment status
