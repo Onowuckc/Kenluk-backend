@@ -74,9 +74,9 @@ class FidelityPaymentService {
                 request_ref: requestRef,
                 request_type: "open_account",
                 auth: {
-                    type: "bank.account",
+                    type: "null",
                     secure: null, // Will be set if encryption is needed
-                    auth_provider: "PaywithAccount"
+                    auth_provider: "FidelityVirtual"
                 },
                 transaction: {
                     mock_mode: process.env.NODE_ENV === 'production' ? 'Live' : 'Live', // Always Live for production
