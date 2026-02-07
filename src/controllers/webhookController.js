@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import Payment from '../models/Payment.js';
 import User from '../models/User.js';
 import PlatformSettings from '../models/PlatformSettings.js';
+import FidelityPayment from '../models/FidelityPayment.js';
 import fetch from 'node-fetch';
 
 /**
@@ -171,15 +172,10 @@ const handleFidelityWebhook = async (req, res) => {
     await fidelityPayment.save();
 
     // Credit wallet with NGN amount ONLY when status === "Successful"
-    const WalletService = (await import('../services/walletService.js')).WalletService;
+    const { processFidelityPaymentCompletion } = await import('../services/walletService.js');
     const creditAmount = amount / 100; // Convert from kobo to NGN
 
-    await WalletService.creditWallet(
-        fidelityPayment.userId,
-        creditAmount,
-        `Wallet funding - PayGate Plus Payment ${transaction_ref}`,
-        fidelityPayment._id
-    );
+    await processFidelityPaymentCompletion(fidelityPayment._id, fidelityPayment.userId);
 
     console.log(`✅ Wallet credited: User ${fidelityPayment.userId} - ₦${creditAmount}`);
 

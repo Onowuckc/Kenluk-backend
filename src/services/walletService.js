@@ -284,7 +284,7 @@ class WalletService {
         throw new Error('Fidelity payment not found');
       }
 
-      if (fidelityPayment.status !== 'Successful') {
+      if (fidelityPayment.status !== 'COMPLETED' && fidelityPayment.status !== 'Successful') {
         throw new Error('Payment not successful');
       }
 

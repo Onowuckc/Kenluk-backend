@@ -458,6 +458,75 @@ const deleteUser = async (req, res) => {
   }
 };
 
+/**
+ * Get virtual accounts for admin (admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getVirtualAccounts = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const status = req.query.status;
+    const skip = (page - 1) * limit;
+
+    // Import FidelityPayment model
+    const FidelityPayment = (await import('../models/FidelityPayment.js')).default;
+
+    // Build query
+    const query = {};
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    const virtualAccounts = await FidelityPayment.find(query)
+      .populate('userId', 'name email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .select('userId accountNumber accountName bankName reference amount status createdAt updatedAt');
+
+    const totalRecords = await FidelityPayment.countDocuments(query);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // Format response
+    const formattedAccounts = virtualAccounts.map(account => ({
+      _id: account._id,
+      userId: account.userId?._id,
+      userEmail: account.userId?.email || 'N/A',
+      userName: account.userId?.name || 'N/A',
+      accountNumber: account.accountNumber,
+      accountName: account.accountName,
+      bankName: account.bankName,
+      reference: account.reference,
+      amount: account.amount,
+      status: account.status,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        virtualAccounts: formattedAccounts,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalRecords,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get virtual accounts error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while retrieving virtual accounts'
+    });
+  }
+};
+
 export {
   getAllUsers,
   getUserById,
@@ -468,5 +537,6 @@ export {
   getPendingKycSubmissions,
   deleteUnverifiedUsers,
   deleteAllUsers,
-  getDashboardStats
+  getDashboardStats,
+  getVirtualAccounts
 };

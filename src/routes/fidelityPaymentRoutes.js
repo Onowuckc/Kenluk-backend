@@ -5,10 +5,10 @@ import * as fidelityPaymentController from '../controllers/fidelityPaymentContro
 const router = express.Router();
 
 /**
- * Send an invoice for payment collection
- * POST /api/payments/fidelity/send-invoice
+ * Create virtual account for wallet funding
+ * POST /api/payments/fidelity/create-virtual-account
  */
-router.post('/send-invoice', authenticate, fidelityPaymentController.sendInvoice);
+router.post('/create-virtual-account', authenticate, fidelityPaymentController.createVirtualAccount);
 
 /**
  * Get payment status

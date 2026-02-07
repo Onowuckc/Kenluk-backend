@@ -55,20 +55,24 @@ const fidelityPaymentSchema = new mongoose.Schema(
         status: {
             type: String,
             enum: [
-                'Pending',
-                'InvoiceSent',
+                'INITIATED',
+                'VIRTUAL_ACCOUNT_CREATED',
+                'WAITING_FOR_TRANSFER',
+                'COMPLETED',
+                'FAILED',
+                'Pending', // Keep for backward compatibility
+                'InvoiceSent', // Keep for backward compatibility
                 'Processing',
                 'WaitingForOTP',
                 'ProcessingOTP',
                 'Successful',
-                'Failed',
                 'OfflineValidating',
                 'OfflineValidated',
                 'OfflineNotifying',
                 'OfflineNotified',
                 'Cancelled'
             ],
-            default: 'Pending',
+            default: 'INITIATED',
             index: true
         },
 
@@ -80,7 +84,23 @@ const fidelityPaymentSchema = new mongoose.Schema(
             provider: String,
             chargeToken: String,
             errors: [String],
-            mainError: String
+            mainError: String,
+            accountNumber: String,
+            accountName: String,
+            bankName: String,
+            accountReference: String
+        },
+
+        // Virtual account details for bank transfer funding
+        virtualAccount: {
+            bankName: String,
+            accountNumber: String,
+            accountName: String,
+            reference: {
+                type: String,
+                index: true
+            },
+            status: String
         },
 
         // Payment method
@@ -143,6 +163,8 @@ const fidelityPaymentSchema = new mongoose.Schema(
 fidelityPaymentSchema.index({ userId: 1, status: 1 });
 fidelityPaymentSchema.index({ userId: 1, createdAt: -1 });
 fidelityPaymentSchema.index({ status: 1, webhookReceived: 1 });
+fidelityPaymentSchema.index({ 'virtualAccount.reference': 1 });
+fidelityPaymentSchema.index({ 'virtualAccount.accountNumber': 1 });
 
 // Pre-save middleware
 fidelityPaymentSchema.pre('save', function (next) {
@@ -152,7 +174,7 @@ fidelityPaymentSchema.pre('save', function (next) {
 
 // Method to mark as successful
 fidelityPaymentSchema.methods.markAsSuccessful = function (webhookData) {
-    this.status = 'Successful';
+    this.status = 'COMPLETED';
     this.completedAt = Date.now();
     this.webhookData = webhookData;
     this.webhookReceived = true;
@@ -162,7 +184,7 @@ fidelityPaymentSchema.methods.markAsSuccessful = function (webhookData) {
 
 // Method to mark as failed
 fidelityPaymentSchema.methods.markAsFailed = function (error) {
-    this.status = 'Failed';
+    this.status = 'FAILED';
     this.completedAt = Date.now();
     if (error) {
         this.fidelityResponse.mainError = error;
@@ -172,12 +194,18 @@ fidelityPaymentSchema.methods.markAsFailed = function (error) {
 
 // Method to update from webhook
 fidelityPaymentSchema.methods.updateFromWebhook = function (webhookData) {
-    this.status = webhookData.statusFromAPI;
+    const statusFromAPI = webhookData.statusFromAPI;
+    const normalizedStatus =
+        statusFromAPI === 'Successful' ? 'COMPLETED'
+            : statusFromAPI === 'Failed' ? 'FAILED'
+                : statusFromAPI;
+
+    this.status = normalizedStatus;
     this.fidelityResponse = webhookData;
     this.webhookReceived = true;
     this.webhookReceivedAt = Date.now();
 
-    if (webhookData.statusFromAPI === 'Successful') {
+    if (normalizedStatus === 'COMPLETED') {
         this.completedAt = Date.now();
     }
 

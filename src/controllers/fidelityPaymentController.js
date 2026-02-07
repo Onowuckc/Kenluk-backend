@@ -1,14 +1,14 @@
-import FidelityPaymentService from '../services/fidelityPaymentService.js';
+import FidelityPaymentService from '../services/FidelityPaymentService.js';
 import FidelityPayment from '../models/FidelityPayment.js';
 import * as fidelityEncryption from '../utils/fidelityEncryption.js';
 
 /**
- * Send an invoice for payment collection
- * POST /api/payments/fidelity/send-invoice
+ * Create virtual account for wallet funding
+ * POST /api/payments/fidelity/create-virtual-account
  */
-export const sendInvoice = async (req, res) => {
+export const createVirtualAccount = async (req, res) => {
     try {
-        console.log('sendInvoice endpoint hit with payload:', req.body);
+        console.log('createVirtualAccount endpoint hit with payload:', req.body);
         const userId = req.user?.id || req.body.userId;
 
         if (!userId) {
@@ -43,10 +43,27 @@ export const sendInvoice = async (req, res) => {
             });
         }
 
+        // Enforce one active virtual account per user
+        const activeVirtualAccount = await FidelityPayment.findOne({
+            userId,
+            status: { $in: ['WAITING_FOR_TRANSFER', 'VIRTUAL_ACCOUNT_CREATED'] }
+        });
+
+        if (activeVirtualAccount) {
+            return res.status(400).json({
+                success: false,
+                message: 'User already has an active virtual account. Please complete or cancel the existing one before creating a new one.',
+                existingAccount: {
+                    paymentId: activeVirtualAccount._id,
+                    accountNumber: activeVirtualAccount.virtualAccount?.accountNumber,
+                    bankName: activeVirtualAccount.virtualAccount?.bankName,
+                    status: activeVirtualAccount.status
+                }
+            });
+        }
+
         const transactionRef = `KNL-WALLET-${Date.now()}`;
         const requestRef = fidelityEncryption.generateRequestRef();
-        const callbackUrl = `${process.env.BASE_URL || 'https://kenluk-backend-production.up.railway.app'}/api/payments/fidelity/webhook`;
-        const redirectUrl = req.body.redirectUrl || callbackUrl; // Frontend redirect URL
 
         // Create payment record in database
         const fidelityPayment = new FidelityPayment({
@@ -62,7 +79,7 @@ export const sendInvoice = async (req, res) => {
                 email: customerEmail,
                 phone: customerMobile
             },
-            status: 'Pending',
+            status: 'INITIATED',
             metadata: metadata,
             initiatedAt: new Date()
         });
@@ -70,77 +87,89 @@ export const sendInvoice = async (req, res) => {
         // Save to database
         await fidelityPayment.save();
 
-        // Call PayGate Plus API to send invoice
-        const invoiceResponse = await FidelityPaymentService.sendInvoice({
+        // Call PayGate Plus API to create virtual account
+        const virtualAccountResponse = await FidelityPaymentService.createVirtualAccount({
             amount: Math.round(amount * 100), // Convert Naira to kobo
             customerEmail,
             customerFirstName,
             customerLastName,
             customerMobile,
             transactionRef,
-            callbackUrl,
-            redirectUrl,
             metadata
         });
 
-        if (invoiceResponse.success) {
-            const responseData = invoiceResponse.data;
+        if (virtualAccountResponse.success) {
+            const responseData = virtualAccountResponse.data;
 
-            // Extract payment URL from response
-            const paymentUrl = responseData?.payment_url || responseData?.data?.payment_url;
+            // Extract virtual account details from response
+            const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || responseData;
 
-            // Update payment record with API response
+            // Update payment record with virtual account details
             fidelityPayment.fidelityResponse = {
                 statusFromAPI: 'success',
-                message: 'Invoice sent successfully',
-                paymentUrl: paymentUrl,
+                message: 'Virtual account created successfully',
+                accountNumber: virtualAccount?.account_number,
+                accountName: virtualAccount?.account_name,
+                bankName: virtualAccount?.bank_name,
+                accountReference: virtualAccount?.reference,
                 transactionRef: responseData.transaction_ref
             };
-            fidelityPayment.status = 'InvoiceSent';
+            fidelityPayment.virtualAccount = {
+                bankName: virtualAccount?.bank_name,
+                accountNumber: virtualAccount?.account_number,
+                accountName: virtualAccount?.account_name,
+                reference: virtualAccount?.reference,
+                status: virtualAccount?.status
+            };
+            fidelityPayment.status = 'WAITING_FOR_TRANSFER';
 
             await fidelityPayment.save();
+
+            // Log account_reference ↔ userId mapping for tracking
+            console.log(`Virtual Account Mapping - User: ${userId}, Account Reference: ${virtualAccount?.reference}, Account Number: ${virtualAccount?.account_number}, Bank: ${virtualAccount?.bank_name}`);
 
             return res.status(200).json({
                 success: true,
-                message: 'Invoice sent successfully',
-                data: {
-                    paymentId: fidelityPayment._id,
-                    transactionRef,
-                    paymentUrl: paymentUrl,
-                    status: 'InvoiceSent',
-                    amount,
-                    message: 'Redirect user to payment URL to complete payment'
-                }
+                fundingType: "BANK_TRANSFER",
+                paymentId: fidelityPayment._id,
+                status: 'WAITING_FOR_TRANSFER',
+                virtualAccount: {
+                    bankName: virtualAccount?.bank_name || 'Fidelity Bank',
+                    accountNumber: virtualAccount?.account_number,
+                    accountName: virtualAccount?.account_name
+                },
+                message: "Transfer funds to the account details provided"
             });
         } else {
             // Update payment record with error
-            fidelityPayment.status = 'Failed';
+            fidelityPayment.status = 'FAILED';
             fidelityPayment.fidelityResponse = {
                 statusFromAPI: 'Failed',
-                message: invoiceResponse.error?.message || 'Invoice sending failed',
-                mainError: JSON.stringify(invoiceResponse.error)
+                message: virtualAccountResponse.error?.message || 'Virtual account creation failed',
+                mainError: JSON.stringify(virtualAccountResponse.error)
             };
 
             await fidelityPayment.save();
 
-            console.error('Invoice sending failed:', invoiceResponse.error);
+            console.error('Virtual account creation failed:', virtualAccountResponse.error);
 
-            return res.status(invoiceResponse.statusCode).json({
+            return res.status(virtualAccountResponse.statusCode).json({
                 success: false,
-                message: 'Failed to send invoice',
-                error: invoiceResponse.error,
+                message: 'Failed to create virtual account',
+                error: virtualAccountResponse.error,
                 paymentId: fidelityPayment._id
             });
         }
     } catch (error) {
-        console.error('Invoice sending error:', error);
+        console.error('Virtual account creation error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error sending invoice',
+            message: 'Error creating virtual account',
             error: error.message
         });
     }
 };
+
 
 /**
  * Query payment status
@@ -181,7 +210,12 @@ export const getPaymentStatus = async (req, res) => {
                 provider: responseData.provider,
                 errors: responseData.errors || []
             };
-            payment.status = statusResponse.data.status;
+            const normalizedStatus =
+                statusResponse.data.status === 'Successful' ? 'COMPLETED'
+                    : statusResponse.data.status === 'Failed' ? 'FAILED'
+                        : statusResponse.data.status;
+
+            payment.status = normalizedStatus;
 
             await payment.save();
         }
@@ -292,31 +326,86 @@ export const handleWebhook = async (req, res) => {
 
         // Process webhook data
         const processedData = FidelityPaymentService.processWebhookData(webhookData);
+        const statusFromAPI = processedData.status;
+        const isSuccessful = statusFromAPI === 'Successful' || statusFromAPI === 'successful';
 
-        // Find payment record
+        // Find payment record by account reference or transaction reference
         const payment = await FidelityPayment.findOne({
-            transactionRef: processedData.transactionRef
+            $or: [
+                { 'virtualAccount.reference': processedData.accountReference },
+                { transactionRef: processedData.transactionRef }
+            ]
         });
 
         if (!payment) {
-            console.warn(`Webhook received for unknown transaction: ${processedData.transactionRef}`);
+            console.warn(`Webhook received for unknown transaction: ${processedData.transactionRef || processedData.accountReference}`);
             return res.status(404).json({
                 success: false,
                 message: 'Transaction not found'
             });
         }
 
-        // Update payment record
-        await payment.updateFromWebhook({
-            statusFromAPI: processedData.status,
+        // Always record webhook payload
+        payment.webhookReceived = true;
+        payment.webhookData = webhookData;
+        payment.webhookReceivedAt = new Date();
+
+        if (!isSuccessful) {
+            payment.status = 'FAILED';
+            payment.fidelityResponse = {
+                statusFromAPI: statusFromAPI,
+                message: processedData.message,
+                providerResponseCode: processedData.providerResponseCode,
+                provider: processedData.provider,
+                chargeToken: processedData.chargeToken,
+                errors: processedData.errors
+            };
+            await payment.save();
+
+            console.log(`Payment ${payment.transactionRef} updated to status: ${statusFromAPI}`);
+            return res.status(200).json({
+                success: true,
+                message: 'Webhook processed (non-success status)',
+                data: {
+                    transactionRef: payment.transactionRef,
+                    status: payment.status
+                }
+            });
+        }
+
+        if (payment.status === 'COMPLETED') {
+            return res.status(200).json({
+                success: true,
+                message: 'Payment already completed',
+                data: {
+                    transactionRef: payment.transactionRef,
+                    status: payment.status
+                }
+            });
+        }
+
+        if (payment.status !== 'WAITING_FOR_TRANSFER' && payment.status !== 'VIRTUAL_ACCOUNT_CREATED') {
+            console.warn(`Payment ${payment.transactionRef} in unexpected status: ${payment.status}`);
+        }
+
+        // Update payment record for successful transfer
+        payment.status = 'COMPLETED';
+        payment.completedAt = new Date();
+        payment.fidelityResponse = {
+            statusFromAPI: statusFromAPI,
             message: processedData.message,
             providerResponseCode: processedData.providerResponseCode,
             provider: processedData.provider,
             chargeToken: processedData.chargeToken,
             errors: processedData.errors
-        });
+        };
+        await payment.save();
 
-        console.log(`Payment ${payment.transactionRef} updated to status: ${processedData.status}`);
+        // Credit wallet only after successful transfer confirmation
+        const { processFidelityPaymentCompletion } = await import('../services/walletService.js');
+        await processFidelityPaymentCompletion(payment._id, payment.userId);
+
+        console.log(`Payment ${payment.transactionRef} updated to status: ${statusFromAPI}`);
 
         return res.status(200).json({
             success: true,
@@ -335,6 +424,7 @@ export const handleWebhook = async (req, res) => {
         });
     }
 };
+
 
 /**
  * Retry payment
@@ -357,7 +447,7 @@ export const retryPayment = async (req, res) => {
             });
         }
 
-        if (payment.status === 'Successful') {
+        if (payment.status === 'COMPLETED' || payment.status === 'Successful') {
             return res.status(400).json({
                 success: false,
                 message: 'Cannot retry a successful payment'
@@ -367,55 +457,64 @@ export const retryPayment = async (req, res) => {
         // Increment retry count
         payment.retryCount += 1;
         payment.lastRetryAt = new Date();
-        payment.status = 'Pending';
+        payment.status = 'INITIATED';
 
         await payment.save();
 
-        // Retry invoice sending
-        const paymentMethod = req.body.paymentMethod || 'bank_account'; // Default to bank_account
-
-        const invoiceResponse = await FidelityPaymentService.sendInvoice({
-            amount: payment.amount,
+        // Retry virtual account creation
+        const virtualAccountResponse = await FidelityPaymentService.createVirtualAccount({
+            amount: Math.round(payment.amount * 100),
             customerEmail: payment.customer.email,
             customerFirstName: payment.customer.firstName,
             customerLastName: payment.customer.lastName,
             customerMobile: payment.customer.phone,
             transactionRef: payment.transactionRef,
-            paymentMethod,
             metadata: payment.metadata
         });
 
-        if (invoiceResponse.success) {
-            const responseData = invoiceResponse.data;
+        if (virtualAccountResponse.success) {
+            const responseData = virtualAccountResponse.data;
+            const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || responseData;
 
             payment.fidelityResponse = {
                 statusFromAPI: 'success',
-                message: 'Invoice resent successfully',
-                paymentUrl: responseData.payment_url,
+                message: 'Virtual account created successfully',
+                accountNumber: virtualAccount?.account_number,
+                accountName: virtualAccount?.account_name,
+                bankName: virtualAccount?.bank_name,
+                accountReference: virtualAccount?.reference,
                 transactionRef: responseData.transaction_ref
             };
-            payment.status = 'InvoiceSent';
+            payment.virtualAccount = {
+                bankName: virtualAccount?.bank_name,
+                accountNumber: virtualAccount?.account_number,
+                accountName: virtualAccount?.account_name,
+                reference: virtualAccount?.reference,
+                status: virtualAccount?.status
+            };
+            payment.status = 'WAITING_FOR_TRANSFER';
 
             await payment.save();
 
             return res.status(200).json({
                 success: true,
-                message: 'Invoice retry successful',
-                data: {
-                    paymentId: payment._id,
-                    transactionRef: payment.transactionRef,
-                    paymentUrl: responseData.payment_url,
-                    status: 'InvoiceSent',
-                    retryCount: payment.retryCount
-                }
-            });
-        } else {
-            return res.status(invoiceResponse.statusCode).json({
-                success: false,
-                message: 'Invoice retry failed',
-                error: invoiceResponse.error
+                fundingType: "BANK_TRANSFER",
+                paymentId: payment._id,
+                status: 'WAITING_FOR_TRANSFER',
+                virtualAccount: {
+                    bankName: virtualAccount?.bank_name || 'Fidelity Bank',
+                    accountNumber: virtualAccount?.account_number,
+                    accountName: virtualAccount?.account_name
+                },
+                message: "Transfer funds to the account details provided"
             });
         }
+
+        return res.status(virtualAccountResponse.statusCode).json({
+            success: false,
+            message: 'Virtual account retry failed',
+            error: virtualAccountResponse.error
+        });
     } catch (error) {
         console.error('Payment retry error:', error);
         res.status(500).json({
@@ -426,8 +525,9 @@ export const retryPayment = async (req, res) => {
     }
 };
 
+
 export default {
-  sendInvoice,
+  createVirtualAccount,
   getPaymentStatus,
   getPaymentHistory,
   handleWebhook,

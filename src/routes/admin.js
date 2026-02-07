@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 // Import controllers
-import { deleteUnverifiedUsers, getPendingKycSubmissions, getDashboardStats, getAllUsers, getUserById, updateUser, deleteUser, approveAccount, rejectAccount } from '../controllers/adminController.js';
+import { deleteUnverifiedUsers, getPendingKycSubmissions, getDashboardStats, getAllUsers, getUserById, updateUser, deleteUser, approveAccount, rejectAccount, getVirtualAccounts } from '../controllers/adminController.js';
 
 // Import middleware
 import { authenticate, requireAdmin } from '../middleware/auth.js';

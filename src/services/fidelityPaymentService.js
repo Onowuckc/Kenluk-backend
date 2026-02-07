@@ -27,11 +27,11 @@ class FidelityPaymentService {
     }
 
     /**
-     * Send invoice for payment collection using PaygatePlus Send Invoice API
+     * Create virtual account for wallet funding using PaygatePlus Open Account API
      * @param {object} paymentData - Payment details
      * @returns {Promise<object>} Response from PayGate Plus API
      */
-    static async sendInvoice(paymentData) {
+    static async createVirtualAccount(paymentData) {
         try {
             const {
                 amount,
@@ -69,10 +69,10 @@ class FidelityPaymentService {
 
             const requestRef = fidelityEncryption.generateRequestRef();
 
-            // PaygatePlus API payload structure (EXACT format required)
+            // PaygatePlus API payload structure for open_account (EXACT format required)
             const requestBody = {
                 request_ref: requestRef,
-                request_type: "send invoice",
+                request_type: "open_account",
                 auth: {
                     type: "bank.account",
                     secure: null, // Will be set if encryption is needed
@@ -196,6 +196,7 @@ class FidelityPaymentService {
                 status: status, // Successful, Failed, Processing, WaitingForOTP, etc.
                 message: message,
                 transactionRef: transaction?.transaction_ref,
+                accountReference: transaction?.account_reference || data?.account_reference || data?.account_ref,
                 amount: transaction?.amount,
                 customerRef: transaction?.customer?.customer_ref,
                 providerResponseCode: data?.provider_response_code,
