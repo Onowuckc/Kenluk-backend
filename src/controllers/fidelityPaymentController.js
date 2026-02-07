@@ -102,7 +102,12 @@ export const createVirtualAccount = async (req, res) => {
             const responseData = virtualAccountResponse.data;
 
             // Extract virtual account details from response
-            const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || responseData;
+            const providerResponse = responseData?.data?.provider_response;
+            const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || providerResponse || responseData;
+
+            if (!virtualAccount?.account_number) {
+                throw new Error('Virtual account not returned by Fidelity');
+            }
 
             // Update payment record with virtual account details
             fidelityPayment.fidelityResponse = {
@@ -136,7 +141,8 @@ export const createVirtualAccount = async (req, res) => {
                 virtualAccount: {
                     bankName: virtualAccount?.bank_name || 'Fidelity Bank',
                     accountNumber: virtualAccount?.account_number,
-                    accountName: virtualAccount?.account_name
+                    accountName: virtualAccount?.account_name,
+                    reference: virtualAccount?.reference
                 },
                 message: "Transfer funds to the account details provided"
             });
@@ -474,7 +480,12 @@ export const retryPayment = async (req, res) => {
 
         if (virtualAccountResponse.success) {
             const responseData = virtualAccountResponse.data;
-            const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || responseData;
+            const providerResponse = responseData?.data?.provider_response;
+            const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || providerResponse || responseData;
+
+            if (!virtualAccount?.account_number) {
+                throw new Error('Virtual account not returned by Fidelity');
+            }
 
             payment.fidelityResponse = {
                 statusFromAPI: 'success',
@@ -504,7 +515,8 @@ export const retryPayment = async (req, res) => {
                 virtualAccount: {
                     bankName: virtualAccount?.bank_name || 'Fidelity Bank',
                     accountNumber: virtualAccount?.account_number,
-                    accountName: virtualAccount?.account_name
+                    accountName: virtualAccount?.account_name,
+                    reference: virtualAccount?.reference
                 },
                 message: "Transfer funds to the account details provided"
             });
