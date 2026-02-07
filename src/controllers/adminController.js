@@ -525,6 +525,7 @@ const getVirtualAccounts = async (req, res) => {
       message: 'Server error while retrieving virtual accounts'
     });
   }
+};
 
 /**
  * Cleanup stale virtual accounts (admin only)
@@ -566,8 +567,6 @@ const cleanupFailedVirtualAccounts = async (req, res) => {
       message: 'Server error while cleaning up virtual accounts'
     });
   }
-};
-
 };
 
 export {
