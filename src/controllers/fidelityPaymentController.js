@@ -7,6 +7,7 @@ import * as fidelityEncryption from '../utils/fidelityEncryption.js';
  * POST /api/payments/fidelity/create-virtual-account
  */
 export const createVirtualAccount = async (req, res) => {
+    let fidelityPayment;
     try {
         console.log('createVirtualAccount endpoint hit with payload:', req.body);
         const userId = req.user?.id || req.body.userId;
@@ -43,30 +44,40 @@ export const createVirtualAccount = async (req, res) => {
             });
         }
 
-        // Enforce one active virtual account per user
+        // Enforce one active virtual account per user (only block truly active accounts)
         const activeVirtualAccount = await FidelityPayment.findOne({
             userId,
-            status: { $in: ['WAITING_FOR_TRANSFER', 'VIRTUAL_ACCOUNT_CREATED'] }
+            status: 'WAITING_FOR_TRANSFER'
         });
 
         if (activeVirtualAccount) {
-            return res.status(400).json({
-                success: false,
-                message: 'User already has an active virtual account. Please complete or cancel the existing one before creating a new one.',
-                existingAccount: {
-                    paymentId: activeVirtualAccount._id,
-                    accountNumber: activeVirtualAccount.virtualAccount?.accountNumber,
-                    bankName: activeVirtualAccount.virtualAccount?.bankName,
-                    status: activeVirtualAccount.status
-                }
-            });
+            if (!activeVirtualAccount.virtualAccount?.accountNumber) {
+                // Stale or failed record without account details, mark failed and allow new creation
+                activeVirtualAccount.status = 'FAILED';
+                activeVirtualAccount.virtualAccount = {
+                    ...(activeVirtualAccount.virtualAccount || {}),
+                    status: 'FAILED'
+                };
+                await activeVirtualAccount.save();
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: 'User already has an active virtual account. Please complete the existing transfer before creating a new one.',
+                    existingAccount: {
+                        paymentId: activeVirtualAccount._id,
+                        accountNumber: activeVirtualAccount.virtualAccount?.accountNumber,
+                        bankName: activeVirtualAccount.virtualAccount?.bankName,
+                        status: activeVirtualAccount.status
+                    }
+                });
+            }
         }
 
         const transactionRef = `KNL-WALLET-${Date.now()}`;
         const requestRef = fidelityEncryption.generateRequestRef();
 
         // Create payment record in database
-        const fidelityPayment = new FidelityPayment({
+        fidelityPayment = new FidelityPayment({
             transactionRef,
             requestRef,
             userId,
@@ -106,6 +117,15 @@ export const createVirtualAccount = async (req, res) => {
             const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || providerResponse || responseData;
 
             if (!virtualAccount?.account_number) {
+                fidelityPayment.status = 'FAILED';
+                fidelityPayment.virtualAccount = {
+                    bankName: virtualAccount?.bank_name,
+                    accountNumber: virtualAccount?.account_number,
+                    accountName: virtualAccount?.account_name,
+                    reference: virtualAccount?.reference,
+                    status: 'FAILED'
+                };
+                await fidelityPayment.save();
                 throw new Error('Virtual account not returned by Fidelity');
             }
 
@@ -149,6 +169,10 @@ export const createVirtualAccount = async (req, res) => {
         } else {
             // Update payment record with error
             fidelityPayment.status = 'FAILED';
+            fidelityPayment.virtualAccount = {
+                ...(fidelityPayment.virtualAccount || {}),
+                status: 'FAILED'
+            };
             fidelityPayment.fidelityResponse = {
                 statusFromAPI: 'Failed',
                 message: virtualAccountResponse.error?.message || 'Virtual account creation failed',
@@ -168,6 +192,18 @@ export const createVirtualAccount = async (req, res) => {
         }
     } catch (error) {
         console.error('Virtual account creation error:', error);
+        if (fidelityPayment && fidelityPayment.status !== 'COMPLETED') {
+            try {
+                fidelityPayment.status = 'FAILED';
+                fidelityPayment.virtualAccount = {
+                    ...(fidelityPayment.virtualAccount || {}),
+                    status: 'FAILED'
+                };
+                await fidelityPayment.save();
+            } catch (saveError) {
+                console.error('Failed to mark payment as FAILED after error:', saveError);
+            }
+        }
         res.status(500).json({
             success: false,
             message: 'Error creating virtual account',
@@ -484,6 +520,15 @@ export const retryPayment = async (req, res) => {
             const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || providerResponse || responseData;
 
             if (!virtualAccount?.account_number) {
+                fidelityPayment.status = 'FAILED';
+                fidelityPayment.virtualAccount = {
+                    bankName: virtualAccount?.bank_name,
+                    accountNumber: virtualAccount?.account_number,
+                    accountName: virtualAccount?.account_name,
+                    reference: virtualAccount?.reference,
+                    status: 'FAILED'
+                };
+                await fidelityPayment.save();
                 throw new Error('Virtual account not returned by Fidelity');
             }
 

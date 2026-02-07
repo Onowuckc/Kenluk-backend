@@ -484,7 +484,7 @@ const getVirtualAccounts = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .select('userId accountNumber accountName bankName reference amount status createdAt updatedAt');
+      .select('userId virtualAccount amount status createdAt updatedAt');
 
     const totalRecords = await FidelityPayment.countDocuments(query);
     const totalPages = Math.ceil(totalRecords / limit);
@@ -495,10 +495,10 @@ const getVirtualAccounts = async (req, res) => {
       userId: account.userId?._id,
       userEmail: account.userId?.email || 'N/A',
       userName: account.userId?.name || 'N/A',
-      accountNumber: account.accountNumber,
-      accountName: account.accountName,
-      bankName: account.bankName,
-      reference: account.reference,
+      accountNumber: account.virtualAccount?.accountNumber,
+      accountName: account.virtualAccount?.accountName,
+      bankName: account.virtualAccount?.bankName,
+      reference: account.virtualAccount?.reference,
       amount: account.amount,
       status: account.status,
       createdAt: account.createdAt,
@@ -525,6 +525,49 @@ const getVirtualAccounts = async (req, res) => {
       message: 'Server error while retrieving virtual accounts'
     });
   }
+
+/**
+ * Cleanup stale virtual accounts (admin only)
+ * POST /api/admin/virtual-accounts/cleanup-stale
+ */
+const cleanupFailedVirtualAccounts = async (req, res) => {
+  try {
+    const FidelityPayment = (await import('../models/FidelityPayment.js')).default;
+
+    const result = await FidelityPayment.updateMany(
+      {
+        status: 'WAITING_FOR_TRANSFER',
+        $or: [
+          { 'virtualAccount.status': { $in: ['FAILED', 'Failed'] } },
+          { 'virtualAccount.accountNumber': { $exists: false } },
+          { 'virtualAccount.accountNumber': null }
+        ]
+      },
+      {
+        $set: {
+          status: 'FAILED',
+          'virtualAccount.status': 'FAILED'
+        }
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Stale virtual accounts cleaned up',
+      data: {
+        matched: result.matchedCount || result.n,
+        modified: result.modifiedCount || result.nModified
+      }
+    });
+  } catch (error) {
+    console.error('Cleanup stale virtual accounts error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while cleaning up virtual accounts'
+    });
+  }
+};
+
 };
 
 export {
@@ -538,5 +581,6 @@ export {
   deleteUnverifiedUsers,
   deleteAllUsers,
   getDashboardStats,
-  getVirtualAccounts
+  getVirtualAccounts,
+  cleanupFailedVirtualAccounts
 };
