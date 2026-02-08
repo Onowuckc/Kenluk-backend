@@ -367,6 +367,27 @@ export const handleWebhook = async (req, res) => {
         //     });
         // }
 
+        // Validate webhook data structure before processing
+        const hasValidStructure = webhookData && (
+            webhookData.request_ref ||
+            webhookData.requestRef ||
+            (webhookData.data && (webhookData.data.request_ref || webhookData.data.status)) ||
+            webhookData.status
+        );
+
+        if (!hasValidStructure) {
+            console.warn('Received webhook with invalid structure, ignoring:', {
+                topLevelKeys: Object.keys(webhookData || {}),
+                hasRequestRef: Boolean(webhookData?.request_ref || webhookData?.requestRef),
+                hasStatus: Boolean(webhookData?.status),
+                hasData: Boolean(webhookData?.data)
+            });
+            return res.status(200).json({
+                success: true,
+                message: 'Webhook received but ignored due to invalid structure'
+            });
+        }
+
         // Process webhook data
         const processedData = FidelityPaymentService.processWebhookData(webhookData);
         const statusFromAPI = processedData.status;

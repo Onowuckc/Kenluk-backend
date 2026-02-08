@@ -179,40 +179,86 @@ class FidelityPaymentService {
     static processWebhookData(webhookData) {
         try {
             const data = webhookData?.data || {};
-            const transaction = webhookData?.transaction || data?.transaction || {};
+            const details = webhookData?.details || {};
+            const detailsData = details?.data || {};
+            const transaction = webhookData?.transaction || data?.transaction || details || {};
 
             let requestRef = webhookData?.request_ref || webhookData?.requestRef || data?.request_ref;
-            let status = webhookData?.status || data?.status;
-            const message = webhookData?.message || data?.message;
+            let status = webhookData?.status || data?.status || details?.status;
+            const message = webhookData?.message || data?.message || detailsData?.statusmessage;
+            const requestType = webhookData?.request_type || data?.request_type || details?.request_type;
 
-            if (!requestRef && transaction?.transaction_ref) {
-                requestRef = transaction.transaction_ref;
+            if (!requestRef && (transaction?.transaction_ref || details?.transaction_ref)) {
+                requestRef = transaction.transaction_ref || details.transaction_ref;
             }
 
-            // Validate webhook
+            // Normalize status for transaction_notification payloads
+            if (!status && requestType === 'transaction_notification' && (data?.error === null || data?.error === undefined)) {
+                status = 'Successful';
+            }
+
             if (!status && typeof message === 'string' && /successful/i.test(message)) {
                 status = 'Successful';
             }
 
+            // If we still don't have required fields, return a default structure instead of throwing
             if (!requestRef || !status) {
-                throw new Error('Invalid webhook data');
+                console.warn('Webhook data missing required fields, using defaults:', {
+                    hasRequestRef: Boolean(requestRef),
+                    hasStatus: Boolean(status),
+                    requestType,
+                    topLevelKeys: Object.keys(webhookData || {}),
+                    dataKeys: Object.keys(data || {}),
+                    transactionKeys: Object.keys(transaction || {})
+                });
+
+                return {
+                    requestRef: requestRef || 'unknown',
+                    status: status || 'Unknown',
+                    message: message || 'Webhook data incomplete',
+                  transactionRef: transaction?.transaction_ref || details?.transaction_ref,
+                  accountReference: transaction?.account_reference || data?.account_reference || data?.account_ref || detailsData?.paymentreference,
+                  amount: transaction?.amount || details?.amount,
+                  customerRef: transaction?.customer?.customer_ref || details?.customer_ref,
+                    providerResponseCode: data?.provider_response_code,
+                    errors: data?.errors || ['Invalid webhook data structure'],
+                    chargeToken: data?.charge_token,
+                    processedAt: new Date().toISOString(),
+                    isValid: false // Flag to indicate invalid data
+                };
             }
 
             return {
                 requestRef: requestRef,
                 status: status, // Successful, Failed, Processing, WaitingForOTP, etc.
                 message: message,
-                transactionRef: transaction?.transaction_ref,
-                accountReference: transaction?.account_reference || data?.account_reference || data?.account_ref,
-                amount: transaction?.amount,
-                customerRef: transaction?.customer?.customer_ref,
+                transactionRef: transaction?.transaction_ref || details?.transaction_ref,
+                accountReference: transaction?.account_reference || data?.account_reference || data?.account_ref || detailsData?.paymentreference,
+                amount: transaction?.amount || details?.amount,
+                customerRef: transaction?.customer?.customer_ref || details?.customer_ref,
                 providerResponseCode: data?.provider_response_code,
                 errors: data?.errors || [],
                 chargeToken: data?.charge_token,
-                processedAt: new Date().toISOString()
+                processedAt: new Date().toISOString(),
+                isValid: true // Flag to indicate valid data
             };
         } catch (error) {
-            throw new Error(`Webhook processing failed: ${error.message}`);
+            console.error('Webhook processing error:', error.message);
+            // Return a safe default instead of throwing
+            return {
+                requestRef: 'error',
+                status: 'Error',
+                message: `Webhook processing failed: ${error.message}`,
+                transactionRef: null,
+                accountReference: null,
+                amount: null,
+                customerRef: null,
+                providerResponseCode: null,
+                errors: [error.message],
+                chargeToken: null,
+                processedAt: new Date().toISOString(),
+                isValid: false
+            };
         }
     }
 
