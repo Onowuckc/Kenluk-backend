@@ -158,6 +158,7 @@ export const createVirtualAccount = async (req, res) => {
                 fundingType: "BANK_TRANSFER",
                 paymentId: fidelityPayment._id,
                 status: 'WAITING_FOR_TRANSFER',
+                amount: fidelityPayment.amount,
                 virtualAccount: {
                     bankName: virtualAccount?.bank_name || 'Fidelity Bank',
                     accountNumber: virtualAccount?.account_number,
@@ -375,7 +376,8 @@ export const handleWebhook = async (req, res) => {
         const payment = await FidelityPayment.findOne({
             $or: [
                 { 'virtualAccount.reference': processedData.accountReference },
-                { transactionRef: processedData.transactionRef }
+                { transactionRef: processedData.transactionRef },
+                { requestRef: processedData.requestRef }
             ]
         });
 
@@ -557,6 +559,7 @@ export const retryPayment = async (req, res) => {
                 fundingType: "BANK_TRANSFER",
                 paymentId: payment._id,
                 status: 'WAITING_FOR_TRANSFER',
+                amount: payment.amount,
                 virtualAccount: {
                     bankName: virtualAccount?.bank_name || 'Fidelity Bank',
                     accountNumber: virtualAccount?.account_number,

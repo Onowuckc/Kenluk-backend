@@ -1,5 +1,5 @@
 import express from 'express';
-import { handleFidelityWebhook } from '../controllers/webhookController.js';
+import { handleWebhook as handleFidelityWebhook } from '../controllers/fidelityPaymentController.js';
 
 const router = express.Router();
 
