@@ -178,21 +178,24 @@ class FidelityPaymentService {
      */
     static processWebhookData(webhookData) {
         try {
-            const {
-                request_ref,
-                status,
-                message,
-                data,
-                transaction
-            } = webhookData;
+            const data = webhookData?.data || {};
+            const transaction = webhookData?.transaction || data?.transaction || {};
+
+            let requestRef = webhookData?.request_ref || webhookData?.requestRef || data?.request_ref;
+            const status = webhookData?.status || data?.status;
+            const message = webhookData?.message || data?.message;
+
+            if (!requestRef && transaction?.transaction_ref) {
+                requestRef = transaction.transaction_ref;
+            }
 
             // Validate webhook
-            if (!request_ref || !status) {
+            if (!requestRef || !status) {
                 throw new Error('Invalid webhook data');
             }
 
             return {
-                requestRef: request_ref,
+                requestRef: requestRef,
                 status: status, // Successful, Failed, Processing, WaitingForOTP, etc.
                 message: message,
                 transactionRef: transaction?.transaction_ref,
