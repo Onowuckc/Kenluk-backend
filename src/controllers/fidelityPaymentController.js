@@ -398,15 +398,16 @@ export const handleWebhook = async (req, res) => {
             $or: [
                 { 'virtualAccount.reference': processedData.accountReference },
                 { transactionRef: processedData.transactionRef },
-                { requestRef: processedData.requestRef }
+                { requestRef: processedData.requestRef },
+                { 'virtualAccount.accountNumber': processedData.accountNumber }
             ]
         });
 
         if (!payment) {
             console.warn(`Webhook received for unknown transaction: ${processedData.transactionRef || processedData.accountReference}`);
-            return res.status(404).json({
-                success: false,
-                message: 'Transaction not found'
+            return res.status(200).json({
+                success: true,
+                message: 'Webhook received but transaction not found'
             });
         }
 

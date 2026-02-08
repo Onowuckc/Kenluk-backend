@@ -193,8 +193,12 @@ class FidelityPaymentService {
             }
 
             // Normalize status for transaction_notification payloads
-            if (!status && requestType === 'transaction_notification' && (data?.error === null || data?.error === undefined)) {
-                status = 'Successful';
+            if (!status && requestType === 'transaction_notification') {
+                if (detailsData?.status === '00' || /success/i.test(detailsData?.statusmessage || '')) {
+                    status = 'Successful';
+                } else if (data?.error === null || data?.error === undefined) {
+                    status = 'Successful';
+                }
             }
 
             if (!status && typeof message === 'string' && /successful/i.test(message)) {
@@ -218,6 +222,7 @@ class FidelityPaymentService {
                     message: message || 'Webhook data incomplete',
                   transactionRef: transaction?.transaction_ref || details?.transaction_ref,
                   accountReference: transaction?.account_reference || data?.account_reference || data?.account_ref || detailsData?.paymentreference,
+                  accountNumber: detailsData?.account_number || detailsData?.craccount || detailsData?.collectionaccountNumber,
                   amount: transaction?.amount || details?.amount,
                   customerRef: transaction?.customer?.customer_ref || details?.customer_ref,
                     providerResponseCode: data?.provider_response_code,
@@ -234,6 +239,7 @@ class FidelityPaymentService {
                 message: message,
                 transactionRef: transaction?.transaction_ref || details?.transaction_ref,
                 accountReference: transaction?.account_reference || data?.account_reference || data?.account_ref || detailsData?.paymentreference,
+                accountNumber: detailsData?.account_number || detailsData?.craccount || detailsData?.collectionaccountNumber,
                 amount: transaction?.amount || details?.amount,
                 customerRef: transaction?.customer?.customer_ref || details?.customer_ref,
                 providerResponseCode: data?.provider_response_code,
