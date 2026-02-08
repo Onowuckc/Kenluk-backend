@@ -240,7 +240,7 @@ class FidelityPaymentService {
                 transactionRef: transaction?.transaction_ref || details?.transaction_ref,
                 accountReference: transaction?.account_reference || data?.account_reference || data?.account_ref || detailsData?.paymentreference,
                 accountNumber: detailsData?.account_number || detailsData?.craccount || detailsData?.collectionaccountNumber,
-                amount: transaction?.amount || details?.amount,
+                amount: transaction?.amount || details?.amount || Number.parseFloat(detailsData?.amount) || undefined,
                 customerRef: transaction?.customer?.customer_ref || details?.customer_ref,
                 providerResponseCode: data?.provider_response_code,
                 errors: data?.errors || [],

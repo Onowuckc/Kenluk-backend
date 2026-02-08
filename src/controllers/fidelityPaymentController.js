@@ -36,6 +36,12 @@ export const createVirtualAccount = async (req, res) => {
                 message: 'Amount must be greater than 0'
             });
         }
+        if (amount < 100) {
+            return res.status(400).json({
+                success: false,
+                message: 'Minimum funding amount is 100 NGN'
+            });
+        }
 
         if (!customerFirstName || !customerLastName || !customerEmail || !customerMobile) {
             return res.status(400).json({
@@ -398,10 +404,12 @@ export const handleWebhook = async (req, res) => {
             $or: [
                 { 'virtualAccount.reference': processedData.accountReference },
                 { transactionRef: processedData.transactionRef },
-                { requestRef: processedData.requestRef },
-                { 'virtualAccount.accountNumber': processedData.accountNumber }
+                { requestRef: processedData.requestRef }
             ]
-        });
+        }) || await FidelityPayment.findOne({
+            'virtualAccount.accountNumber': processedData.accountNumber,
+            status: 'WAITING_FOR_TRANSFER'
+        }).sort({ createdAt: -1 });
 
         if (!payment) {
             console.warn(`Webhook received for unknown transaction: ${processedData.transactionRef || processedData.accountReference}`);
@@ -452,6 +460,15 @@ export const handleWebhook = async (req, res) => {
 
         if (payment.status !== 'WAITING_FOR_TRANSFER' && payment.status !== 'VIRTUAL_ACCOUNT_CREATED') {
             console.warn(`Payment ${payment.transactionRef} in unexpected status: ${payment.status}`);
+        }
+
+        // Update amount if webhook amount differs (use actual amount received)
+        if (processedData.amount) {
+            const normalizedAmount =
+                processedData.amount > 1000 ? processedData.amount / 100 : processedData.amount;
+            if (!Number.isNaN(normalizedAmount) && normalizedAmount > 0) {
+                payment.amount = normalizedAmount;
+            }
         }
 
         // Update payment record for successful transfer
