@@ -567,6 +567,67 @@ const cleanupFailedVirtualAccounts = async (req, res) => {
       message: 'Server error while cleaning up virtual accounts'
     });
   }
+
+/**
+ * Manually complete a virtual account funding (admin only)
+ * POST /api/admin/virtual-accounts/:paymentId/complete
+ */
+const completeVirtualAccountManually = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const FidelityPayment = (await import('../models/FidelityPayment.js')).default;
+
+    const payment = await FidelityPayment.findById(paymentId);
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Virtual account payment not found'
+      });
+    }
+
+    if (payment.status === 'COMPLETED') {
+      return res.status(200).json({
+        success: true,
+        message: 'Payment already completed',
+        data: {
+          paymentId: payment._id,
+          status: payment.status
+        }
+      });
+    }
+
+    if (payment.status !== 'WAITING_FOR_TRANSFER') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot complete payment in status ${payment.status}`
+      });
+    }
+
+    // Mark completed and credit wallet using existing service logic
+    payment.status = 'COMPLETED';
+    payment.completedAt = new Date();
+    await payment.save();
+
+    const { processFidelityPaymentCompletion } = await import('../services/walletService.js');
+    await processFidelityPaymentCompletion(payment._id, payment.userId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment completed and wallet credited',
+      data: {
+        paymentId: payment._id,
+        status: payment.status
+      }
+    });
+  } catch (error) {
+    console.error('Manual completion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while completing payment'
+    });
+  }
+};
+
 };
 
 export {
@@ -581,5 +642,6 @@ export {
   deleteAllUsers,
   getDashboardStats,
   getVirtualAccounts,
-  cleanupFailedVirtualAccounts
+  cleanupFailedVirtualAccounts,
+  completeVirtualAccountManually
 };

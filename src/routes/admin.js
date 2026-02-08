@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 // Import controllers
-import { deleteUnverifiedUsers, getPendingKycSubmissions, getDashboardStats, getAllUsers, getUserById, updateUser, deleteUser, approveAccount, rejectAccount, getVirtualAccounts, cleanupFailedVirtualAccounts } from '../controllers/adminController.js';
+import { deleteUnverifiedUsers, getPendingKycSubmissions, getDashboardStats, getAllUsers, getUserById, updateUser, deleteUser, approveAccount, rejectAccount, getVirtualAccounts, cleanupFailedVirtualAccounts, completeVirtualAccountManually } from '../controllers/adminController.js';
 
 // Import middleware
 import { authenticate, requireAdmin } from '../middleware/auth.js';
@@ -16,6 +16,7 @@ router.get('/dashboard', authenticate, requireAdmin, getDashboardStats);
 // Virtual account admin routes
 router.get('/virtual-accounts', authenticate, requireAdmin, getVirtualAccounts);
 router.post('/virtual-accounts/cleanup-stale', authenticate, requireAdmin, cleanupFailedVirtualAccounts);
+router.post('/virtual-accounts/:paymentId/complete', authenticate, requireAdmin, completeVirtualAccountManually);
 
 // User management routes
 router.get('/users', authenticate, requireAdmin, getAllUsers);
