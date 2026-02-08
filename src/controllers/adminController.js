@@ -567,6 +567,7 @@ const cleanupFailedVirtualAccounts = async (req, res) => {
       message: 'Server error while cleaning up virtual accounts'
     });
   }
+};
 
 /**
  * Manually complete a virtual account funding (admin only)
@@ -626,8 +627,6 @@ const completeVirtualAccountManually = async (req, res) => {
       message: 'Server error while completing payment'
     });
   }
-};
-
 };
 
 export {
