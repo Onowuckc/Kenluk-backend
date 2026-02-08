@@ -446,8 +446,8 @@ export const handleWebhook = async (req, res) => {
         await payment.save();
 
         // Credit wallet only after successful transfer confirmation
-        const { processFidelityPaymentCompletion } = await import('../services/walletService.js');
-        await processFidelityPaymentCompletion(payment._id, payment.userId);
+        const WalletService = (await import('../services/walletService.js')).default;
+        await WalletService.processFidelityPaymentCompletion(payment._id, payment.userId);
 
         console.log(`Payment ${payment.transactionRef} updated to status: ${statusFromAPI}`);
 

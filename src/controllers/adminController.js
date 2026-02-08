@@ -609,8 +609,8 @@ const completeVirtualAccountManually = async (req, res) => {
     payment.completedAt = new Date();
     await payment.save();
 
-    const { processFidelityPaymentCompletion } = await import('../services/walletService.js');
-    await processFidelityPaymentCompletion(payment._id, payment.userId);
+    const WalletService = (await import('../services/walletService.js')).default;
+    await WalletService.processFidelityPaymentCompletion(payment._id, payment.userId);
 
     return res.status(200).json({
       success: true,

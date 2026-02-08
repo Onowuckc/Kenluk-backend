@@ -182,7 +182,7 @@ class FidelityPaymentService {
             const transaction = webhookData?.transaction || data?.transaction || {};
 
             let requestRef = webhookData?.request_ref || webhookData?.requestRef || data?.request_ref;
-            const status = webhookData?.status || data?.status;
+            let status = webhookData?.status || data?.status;
             const message = webhookData?.message || data?.message;
 
             if (!requestRef && transaction?.transaction_ref) {
@@ -190,6 +190,10 @@ class FidelityPaymentService {
             }
 
             // Validate webhook
+            if (!status && typeof message === 'string' && /successful/i.test(message)) {
+                status = 'Successful';
+            }
+
             if (!requestRef || !status) {
                 throw new Error('Invalid webhook data');
             }
