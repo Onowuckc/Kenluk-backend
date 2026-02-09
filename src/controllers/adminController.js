@@ -253,9 +253,9 @@ const getAllUsers = async (req, res) => {
  */
 const getUserById = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { userId } = req.params;
 
-    const user = await User.findById(id).select('-password -__v');
+    const user = await User.findById(userId).select('-password -__v');
 
     if (!user) {
       return res.status(404).json({
@@ -284,16 +284,16 @@ const getUserById = async (req, res) => {
  */
 const updateUser = async (req, res) => {
   try {
-    const { id } = req.params;
-    const updates = req.body;
+  const { userId } = req.params;
+  const updates = req.body;
 
     // Prevent updating sensitive fields
     delete updates.password;
     delete updates.isAdmin;
     delete updates.__v;
 
-    const user = await User.findByIdAndUpdate(
-      id,
+  const user = await User.findByIdAndUpdate(
+    userId,
       updates,
       { new: true, runValidators: true }
     ).select('-password -__v');
@@ -425,10 +425,10 @@ const rejectAccount = async (req, res) => {
  */
 const deleteUser = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { userId } = req.params;
 
     // Check if user is admin
-    const user = await User.findById(id);
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -443,7 +443,7 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    await User.findByIdAndDelete(id);
+    await User.findByIdAndDelete(userId);
 
     res.status(200).json({
       success: true,
