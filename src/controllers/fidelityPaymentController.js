@@ -2,6 +2,27 @@ import FidelityPaymentService from '../services/fidelityPaymentService.js';
 import FidelityPayment from '../models/FidelityPayment.js';
 import * as fidelityEncryption from '../utils/fidelityEncryption.js';
 
+const GENERIC_PROVIDER_ACCOUNT_NAMES = new Set(['UPEW']);
+
+const buildCustomerFullName = (firstName, lastName) => {
+    return [firstName, lastName].filter(Boolean).join(' ').trim();
+};
+
+const resolveDisplayAccountName = (providerAccountName, customerFullName) => {
+    const normalizedProviderName = (providerAccountName || '').trim();
+    const normalizedCustomerName = (customerFullName || '').trim();
+
+    if (!normalizedProviderName) {
+        return normalizedCustomerName;
+    }
+
+    if (GENERIC_PROVIDER_ACCOUNT_NAMES.has(normalizedProviderName.toUpperCase())) {
+        return normalizedCustomerName || normalizedProviderName;
+    }
+
+    return normalizedProviderName;
+};
+
 /**
  * Create virtual account for wallet funding
  * POST /api/payments/fidelity/create-virtual-account
@@ -121,13 +142,15 @@ export const createVirtualAccount = async (req, res) => {
             // Extract virtual account details from response
             const providerResponse = responseData?.data?.provider_response;
             const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || providerResponse || responseData;
+            const customerFullName = buildCustomerFullName(customerFirstName, customerLastName);
+            const resolvedAccountName = resolveDisplayAccountName(virtualAccount?.account_name, customerFullName);
 
             if (!virtualAccount?.account_number) {
                 fidelityPayment.status = 'FAILED';
                 fidelityPayment.virtualAccount = {
                     bankName: virtualAccount?.bank_name,
                     accountNumber: virtualAccount?.account_number,
-                    accountName: virtualAccount?.account_name,
+                    accountName: resolvedAccountName,
                     reference: virtualAccount?.reference,
                     status: 'FAILED'
                 };
@@ -140,7 +163,7 @@ export const createVirtualAccount = async (req, res) => {
                 statusFromAPI: 'success',
                 message: 'Virtual account created successfully',
                 accountNumber: virtualAccount?.account_number,
-                accountName: virtualAccount?.account_name,
+                accountName: resolvedAccountName,
                 bankName: virtualAccount?.bank_name,
                 accountReference: virtualAccount?.reference,
                 transactionRef: responseData.transaction_ref
@@ -148,7 +171,7 @@ export const createVirtualAccount = async (req, res) => {
             fidelityPayment.virtualAccount = {
                 bankName: virtualAccount?.bank_name,
                 accountNumber: virtualAccount?.account_number,
-                accountName: virtualAccount?.account_name,
+                accountName: resolvedAccountName,
                 reference: virtualAccount?.reference,
                 status: virtualAccount?.status
             };
@@ -168,7 +191,7 @@ export const createVirtualAccount = async (req, res) => {
                 virtualAccount: {
                     bankName: virtualAccount?.bank_name || 'Fidelity Bank',
                     accountNumber: virtualAccount?.account_number,
-                    accountName: virtualAccount?.account_name,
+                    accountName: resolvedAccountName,
                     reference: virtualAccount?.reference
                 },
                 message: "Transfer funds to the account details provided"
@@ -559,17 +582,19 @@ export const retryPayment = async (req, res) => {
             const responseData = virtualAccountResponse.data;
             const providerResponse = responseData?.data?.provider_response;
             const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || providerResponse || responseData;
+            const customerFullName = buildCustomerFullName(payment.customer.firstName, payment.customer.lastName);
+            const resolvedAccountName = resolveDisplayAccountName(virtualAccount?.account_name, customerFullName);
 
             if (!virtualAccount?.account_number) {
-                fidelityPayment.status = 'FAILED';
-                fidelityPayment.virtualAccount = {
+                payment.status = 'FAILED';
+                payment.virtualAccount = {
                     bankName: virtualAccount?.bank_name,
                     accountNumber: virtualAccount?.account_number,
-                    accountName: virtualAccount?.account_name,
+                    accountName: resolvedAccountName,
                     reference: virtualAccount?.reference,
                     status: 'FAILED'
                 };
-                await fidelityPayment.save();
+                await payment.save();
                 throw new Error('Virtual account not returned by Fidelity');
             }
 
@@ -577,7 +602,7 @@ export const retryPayment = async (req, res) => {
                 statusFromAPI: 'success',
                 message: 'Virtual account created successfully',
                 accountNumber: virtualAccount?.account_number,
-                accountName: virtualAccount?.account_name,
+                accountName: resolvedAccountName,
                 bankName: virtualAccount?.bank_name,
                 accountReference: virtualAccount?.reference,
                 transactionRef: responseData.transaction_ref
@@ -585,7 +610,7 @@ export const retryPayment = async (req, res) => {
             payment.virtualAccount = {
                 bankName: virtualAccount?.bank_name,
                 accountNumber: virtualAccount?.account_number,
-                accountName: virtualAccount?.account_name,
+                accountName: resolvedAccountName,
                 reference: virtualAccount?.reference,
                 status: virtualAccount?.status
             };
@@ -602,7 +627,7 @@ export const retryPayment = async (req, res) => {
                 virtualAccount: {
                     bankName: virtualAccount?.bank_name || 'Fidelity Bank',
                     accountNumber: virtualAccount?.account_number,
-                    accountName: virtualAccount?.account_name,
+                    accountName: resolvedAccountName,
                     reference: virtualAccount?.reference
                 },
                 message: "Transfer funds to the account details provided"
