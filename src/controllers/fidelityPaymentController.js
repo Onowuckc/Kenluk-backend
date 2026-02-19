@@ -1,26 +1,25 @@
 import FidelityPaymentService from '../services/fidelityPaymentService.js';
 import FidelityPayment from '../models/FidelityPayment.js';
+import User from '../models/User.js';
 import * as fidelityEncryption from '../utils/fidelityEncryption.js';
-
-const GENERIC_PROVIDER_ACCOUNT_NAMES = new Set(['UPEW']);
 
 const buildCustomerFullName = (firstName, lastName) => {
     return [firstName, lastName].filter(Boolean).join(' ').trim();
+};
+
+const splitFullName = (fullName, fallbackFirstName, fallbackLastName) => {
+    const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
+    const firstName = parts[0] || fallbackFirstName || '';
+    const lastName = parts.slice(1).join(' ') || fallbackLastName || firstName;
+
+    return { firstName, lastName };
 };
 
 const resolveDisplayAccountName = (providerAccountName, customerFullName) => {
     const normalizedProviderName = (providerAccountName || '').trim();
     const normalizedCustomerName = (customerFullName || '').trim();
 
-    if (!normalizedProviderName) {
-        return normalizedCustomerName;
-    }
-
-    if (GENERIC_PROVIDER_ACCOUNT_NAMES.has(normalizedProviderName.toUpperCase())) {
-        return normalizedCustomerName || normalizedProviderName;
-    }
-
-    return normalizedProviderName;
+    return normalizedProviderName || normalizedCustomerName;
 };
 
 /**
@@ -40,6 +39,21 @@ export const createVirtualAccount = async (req, res) => {
             });
         }
 
+        const user = await User.findById(userId).select('name email accountStatus');
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (user.accountStatus !== 'approved') {
+            return res.status(403).json({
+                success: false,
+                message: 'Account not approved for wallet funding'
+            });
+        }
+
         const {
             amount,
             description,
@@ -49,6 +63,15 @@ export const createVirtualAccount = async (req, res) => {
             customerMobile,
             metadata = {}
         } = req.body;
+
+        const profileFullName = (user.name || '').trim();
+        const fullName = profileFullName || buildCustomerFullName(customerFirstName, customerLastName);
+        const { firstName: resolvedFirstName, lastName: resolvedLastName } = splitFullName(
+            fullName,
+            customerFirstName,
+            customerLastName
+        );
+        const resolvedEmail = user.email || customerEmail;
 
         // Validation
         if (!amount || amount <= 0) {
@@ -64,7 +87,7 @@ export const createVirtualAccount = async (req, res) => {
             });
         }
 
-        if (!customerFirstName || !customerLastName || !customerEmail || !customerMobile) {
+        if (!resolvedFirstName || !resolvedLastName || !resolvedEmail || !customerMobile) {
             return res.status(400).json({
                 success: false,
                 message: 'Customer information is required'
@@ -112,9 +135,9 @@ export const createVirtualAccount = async (req, res) => {
             currency: 'NGN',
             description,
             customer: {
-                firstName: customerFirstName,
-                lastName: customerLastName,
-                email: customerEmail,
+                firstName: resolvedFirstName,
+                lastName: resolvedLastName,
+                email: resolvedEmail,
                 phone: customerMobile
             },
             status: 'INITIATED',
@@ -128,9 +151,9 @@ export const createVirtualAccount = async (req, res) => {
         // Call PayGate Plus API to create virtual account
         const virtualAccountResponse = await FidelityPaymentService.createVirtualAccount({
             amount: Math.round(amount * 100), // Convert Naira to kobo
-            customerEmail,
-            customerFirstName,
-            customerLastName,
+            customerEmail: resolvedEmail,
+            customerFirstName: resolvedFirstName,
+            customerLastName: resolvedLastName,
             customerMobile,
             transactionRef,
             metadata
@@ -142,7 +165,7 @@ export const createVirtualAccount = async (req, res) => {
             // Extract virtual account details from response
             const providerResponse = responseData?.data?.provider_response;
             const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || providerResponse || responseData;
-            const customerFullName = buildCustomerFullName(customerFirstName, customerLastName);
+            const customerFullName = buildCustomerFullName(resolvedFirstName, resolvedLastName);
             const resolvedAccountName = resolveDisplayAccountName(virtualAccount?.account_name, customerFullName);
 
             if (!virtualAccount?.account_number) {
