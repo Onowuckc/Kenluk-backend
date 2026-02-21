@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
 import walletController from '../controllers/walletController.js';
 
 const router = express.Router();
@@ -26,6 +26,6 @@ router.post('/validate-balance', authenticate, walletController.validateBalance)
 router.post('/process-fidelity-payment', authenticate, walletController.processFidelityPayment);
 
 // Admin approve payment with wallet debit
-router.post('/approve-payment/:paymentId', authenticate, walletController.approvePaymentWithWalletDebit);
+router.post('/approve-payment/:paymentId', authenticate, requireAdmin, walletController.approvePaymentWithWalletDebit);
 
 export default router;

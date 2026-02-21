@@ -3,7 +3,6 @@ import Payment from '../models/Payment.js';
 import User from '../models/User.js';
 import PlatformSettings from '../models/PlatformSettings.js';
 import FidelityPayment from '../models/FidelityPayment.js';
-import fetch from 'node-fetch';
 
 /**
  * Verify Fidelity webhook signature
@@ -57,57 +56,6 @@ const convertNgnToUsdt = async (ngnAmount) => {
   } catch (error) {
     console.error('❌ Exchange rate conversion error:', error.message);
     throw error;
-  }
-};
-
-/**
- * Fund Reap account with USDT (via simulation API)
- * @param {number} usdtAmount - Amount in USDT
- * @returns {Promise<{success: boolean, data: Object}>}
- */
-const fundReapAccount = async (usdtAmount) => {
-  try {
-    const reapUrl = 'https://sandbox.payments.reap.global/api/simulate/balances';
-    const apiKey = process.env.REAP_PAYMENT_API_KEY;
-    const entityId = process.env.REAP_ENTITY_ID;
-
-    if (!apiKey || !entityId) {
-      throw new Error('Reap Payment API configuration missing');
-    }
-
-    const payload = {
-      currency: 'USDT',
-      amount: usdtAmount,
-      network: 'Polygon PoS' // Default network for USDT
-    };
-
-    const response = await fetch(reapUrl, {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-        'x-reap-api-key': apiKey,
-        'x-reap-entity-id': entityId
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const responseData = await response.json();
-
-    if (!response.ok) {
-      throw new Error(responseData.message || 'Failed to fund Reap account');
-    }
-
-    return {
-      success: true,
-      data: responseData
-    };
-  } catch (error) {
-    console.error('❌ Reap funding error:', error.message);
-    return {
-      success: false,
-      error: error.message
-    };
   }
 };
 
@@ -203,4 +151,4 @@ const handleFidelityWebhook = async (req, res) => {
   }
 };
 
-export { handleFidelityWebhook, verifyFidelitySignature, convertNgnToUsdt, fundReapAccount };
+export { handleFidelityWebhook, verifyFidelitySignature, convertNgnToUsdt };

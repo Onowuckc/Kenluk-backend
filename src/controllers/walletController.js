@@ -243,8 +243,7 @@ const processFidelityPayment = async (req, res) => {
 const approvePaymentWithWalletDebit = async (req, res) => {
   try {
     const { paymentId } = req.params;
-    const { userId } = req.body;
-    const approvedBy = req.user?.id;
+    const approvedBy = req.user?._id;
 
     if (!approvedBy) {
       return res.status(401).json({
@@ -253,14 +252,14 @@ const approvePaymentWithWalletDebit = async (req, res) => {
       });
     }
 
-    if (!paymentId || !userId) {
+    if (!paymentId) {
       return res.status(400).json({
         success: false,
-        message: 'Payment ID and User ID required'
+        message: 'Payment ID is required'
       });
     }
 
-    const result = await WalletService.approvePaymentWithWalletDebit(paymentId, userId, approvedBy);
+    const result = await WalletService.approvePaymentWithWalletDebit(paymentId, approvedBy);
 
     res.status(200).json({
       success: true,

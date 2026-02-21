@@ -282,7 +282,7 @@ const sendToReapPaymentAPI = async (payment) => {
     };
     console.log('[REAP DEBUG] Environment variables check:', envVars);
 
-    const reapPaymentUrl = process.env.REAP_PAYMENT_API_URL || 'https://sandbox.payments.reap.global/api/payments';
+    const reapPaymentUrl = process.env.REAP_PAYMENT_API_URL || 'https://payments.reap.global/api/payments';
     const apiKey = process.env.REAP_PAYMENT_API_KEY;
     const entityId = process.env.REAP_ENTITY_ID;
 
@@ -558,8 +558,6 @@ const getAllPayments = async (req, res) => {
  * @param {Object} res - Express response object
  */
 const reviewPayment = async (req, res) => {
-  console.log(`[REVIEW DEBUG] Starting reviewPayment for paymentId: ${req.params.paymentId}, action: ${req.body.action}, adminId: ${req.user._id}`);
-
   try {
     const { paymentId } = req.params;
     const { action, rejectionReason } = req.body;
@@ -567,7 +565,6 @@ const reviewPayment = async (req, res) => {
 
     // Validate action
     if (!['approve', 'reject'].includes(action)) {
-      console.log(`[REVIEW DEBUG] Invalid action: ${action}`);
       return res.status(400).json({
         success: false,
         message: 'Invalid action. Must be "approve" or "reject"'
@@ -576,7 +573,6 @@ const reviewPayment = async (req, res) => {
 
     // Validate rejection reason if rejecting
     if (action === 'reject' && (!rejectionReason || rejectionReason.trim().length === 0)) {
-      console.log(`[REVIEW DEBUG] Missing rejection reason for reject action`);
       return res.status(400).json({
         success: false,
         message: 'Rejection reason is required when rejecting a payment'
@@ -584,21 +580,16 @@ const reviewPayment = async (req, res) => {
     }
 
     // Find and update payment
-    console.log(`[REVIEW DEBUG] Finding payment ${paymentId}`);
     const payment = await Payment.findById(paymentId);
 
     if (!payment) {
-      console.log(`[REVIEW DEBUG] Payment ${paymentId} not found`);
       return res.status(404).json({
         success: false,
         message: 'Payment request not found'
       });
     }
 
-    console.log(`[REVIEW DEBUG] Payment found with status: ${payment.status}`);
-
     if (payment.status !== 'pending_admin_approval') {
-      console.log(`[REVIEW DEBUG] Payment status is ${payment.status}, not pending_admin_approval`);
       return res.status(400).json({
         success: false,
         message: 'Payment request has already been reviewed'
@@ -607,7 +598,6 @@ const reviewPayment = async (req, res) => {
 
     // Update payment
     const newStatus = action === 'approve' ? 'approved' : 'rejected';
-    console.log(`[REVIEW DEBUG] Updating payment status from ${payment.status} to ${newStatus}`);
     payment.status = newStatus;
     payment.approvedBy = adminId;
     payment.approvedAt = new Date();
@@ -617,28 +607,6 @@ const reviewPayment = async (req, res) => {
     }
 
     await payment.save();
-    console.log(`[REVIEW DEBUG] Payment saved with new status: ${payment.status}`);
-
-    // If approved, send to Reap Payment API
-    let reapStatus = null;
-    let reapError = null;
-    if (action === 'approve') {
-      console.log(`[REVIEW DEBUG] Action is approve, calling sendToReapPaymentAPI`);
-      try {
-        await sendToReapPaymentAPI(payment);
-        reapStatus = 'success';
-        console.log(`[REVIEW DEBUG] Reap API call successful`);
-      } catch (error) {
-        console.error('[REVIEW DEBUG] Failed to send to Reap API:', error);
-        reapStatus = 'failed';
-        reapError = error.message;
-        // Don't fail the approval if Reap API fails
-      }
-    } else {
-      console.log(`[REVIEW DEBUG] Action is ${action}, skipping Reap API call`);
-    }
-
-    console.log(`[REVIEW DEBUG] Sending response with reapStatus: ${reapStatus}, reapError: ${reapError ? 'present' : 'null'}`);
 
     res.status(200).json({
       success: true,
@@ -647,14 +615,12 @@ const reviewPayment = async (req, res) => {
         paymentId: payment._id,
         status: payment.status,
         approvedAt: payment.approvedAt,
-        rejectionReason: payment.rejectionReason,
-        reapStatus: reapStatus,
-        reapError: reapError
+        rejectionReason: payment.rejectionReason
       }
     });
 
   } catch (error) {
-    console.error('[REVIEW DEBUG] Review payment error:', error);
+    console.error('Review payment error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error while reviewing payment'

@@ -315,7 +315,7 @@ class WalletService {
   /**
    * Admin: Approve payment submission and debit wallet for REAP transfer
    */
-  static async approvePaymentWithWalletDebit(paymentId, userId, approvedBy) {
+  static async approvePaymentWithWalletDebit(paymentId, approvedBy) {
     try {
       const payment = await Payment.findById(paymentId);
 
@@ -323,7 +323,12 @@ class WalletService {
         throw new Error('Payment not found');
       }
 
-      // Get local amount (in NGN converted to USD for wallet)
+      if (payment.status !== 'approved') {
+        throw new Error('Payment must be approved before wallet debit');
+      }
+
+      const userId = payment.userId;
+
       const amount = payment.localAmount;
 
       // Validate wallet balance
@@ -341,37 +346,12 @@ class WalletService {
         paymentId
       );
 
-      // Convert NGN to USDT for REAP funding
-      let reapFundingResult = null;
-      try {
-        const { usdtAmount, exchangeRate } = await this.convertNgnToUsdt(payment.amount);
-        
-        // Fund system's REAP account with the debited amount
-        reapFundingResult = await this.fundReapAccount(usdtAmount);
-        
-        if (!reapFundingResult.success) {
-          console.warn('⚠️ Warning: REAP funding failed, but payment approved. Will retry later.');
-        }
-      } catch (reapError) {
-        console.error('❌ REAP funding error:', reapError.message);
-        // Don't fail the payment approval if REAP funding fails
-        // This can be retried later
-      }
-
-      // Update payment status
-      payment.status = 'approved';
+      // Update payment status after successful debit
+      payment.status = 'processing';
       payment.approvedBy = approvedBy;
       payment.approvedAt = new Date();
-      
-      // Store REAP funding attempt info
-      if (reapFundingResult) {
-        payment.reapFundingAttempt = {
-          timestamp: new Date(),
-          success: reapFundingResult.success,
-          message: reapFundingResult.error || 'Funding successful'
-        };
-      }
-      
+      payment.processedAt = new Date();
+
       await payment.save();
 
       return {
@@ -379,8 +359,8 @@ class WalletService {
         paymentId: payment._id,
         walletDebitAmount: amount,
         newWalletBalance: debitResult.newBalance,
-        reapFundingStatus: reapFundingResult?.success ? 'success' : 'failed',
-        message: 'Payment approved, wallet debited, and REAP account funded'
+        status: payment.status,
+        message: 'Wallet debited successfully. Payment moved to processing.'
       };
     } catch (error) {
       throw new Error(`Failed to approve payment with wallet debit: ${error.message}`);
@@ -406,55 +386,6 @@ class WalletService {
       };
     } catch (error) {
       throw error;
-    }
-  }
-
-  /**
-   * Fund system's REAP account with USDT
-   */
-  static async fundReapAccount(usdtAmount) {
-    try {
-      const reapUrl = 'https://sandbox.payments.reap.global/api/simulate/balances';
-      const apiKey = process.env.REAP_PAYMENT_API_KEY;
-      const entityId = process.env.REAP_ENTITY_ID;
-
-      if (!apiKey || !entityId) {
-        throw new Error('REAP API configuration missing');
-      }
-
-      const payload = {
-        currency: 'USDT',
-        amount: usdtAmount,
-        network: 'Polygon PoS'
-      };
-
-      const response = await fetch(reapUrl, {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'content-type': 'application/json',
-          'x-reap-api-key': apiKey,
-          'x-reap-entity-id': entityId
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(responseData.message || 'Failed to fund REAP account');
-      }
-
-      return {
-        success: true,
-        data: responseData
-      };
-    } catch (error) {
-      console.error('❌ REAP funding error:', error.message);
-      return {
-        success: false,
-        error: error.message
-      };
     }
   }
 
