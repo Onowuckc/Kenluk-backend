@@ -27,9 +27,11 @@ import webhookRoutes from './routes/webhooks.js';
 import walletRoutes from './routes/walletRoutes.js';
 import fidelityPaymentRoutes from './routes/fidelityPaymentRoutes.js';
 import beneficiaryRoutes from './routes/beneficiaries.js';
+import logsRoutes from './routes/logs.js';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
+import requestContext from './middleware/requestContext.js';
 
 // Import database connection
 import connectDB from './config/database.js';
@@ -44,19 +46,22 @@ connectDB();
 app.use(cors({
   origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", process.env.CLIENT_URL, "https://kenluk-frontend.up.railway.app", "https://www.kenluk.com"],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+  exposedHeaders: ['X-Request-Id'],
   credentials: true,
   sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
 }));
 app.options('*', cors({
   origin: ["http://localhost:5173", "http://localhost:3000", "http://localhost:3001", "http://localhost:3002", process.env.CLIENT_URL, "https://kenluk-frontend.up.railway.app", "https://www.kenluk.com"],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+  exposedHeaders: ['X-Request-Id'],
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
+app.use(requestContext);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -70,6 +75,7 @@ app.use('/api/simulations', simulationRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/beneficiaries', beneficiaryRoutes);
+app.use('/api/logs', logsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -112,7 +118,9 @@ app.use(errorHandler);
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: `Route ${req.originalUrl} not found`
+    message: `Route ${req.originalUrl} not found`,
+    requestId: req.requestId,
+    timestamp: new Date().toISOString()
   });
 });
 
