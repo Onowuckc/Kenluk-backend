@@ -26,6 +26,7 @@ import simulationRoutes from './routes/simulations.js';
 import webhookRoutes from './routes/webhooks.js';
 import walletRoutes from './routes/walletRoutes.js';
 import fidelityPaymentRoutes from './routes/fidelityPaymentRoutes.js';
+import beneficiaryRoutes from './routes/beneficiaries.js';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
@@ -68,6 +69,7 @@ app.use('/api/payments/fidelity', fidelityPaymentRoutes);
 app.use('/api/simulations', simulationRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/beneficiaries', beneficiaryRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

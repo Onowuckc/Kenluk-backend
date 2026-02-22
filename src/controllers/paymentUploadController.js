@@ -1,6 +1,7 @@
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import Payment from '../models/Payment.js';
+import Beneficiary from '../models/Beneficiary.js';
 import PlatformSettings from '../models/PlatformSettings.js';
 import s3Client from '../config/s3Client.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -444,6 +445,30 @@ const generateInvoiceUrl = async (s3Key, bucketName) => {
   return await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
 };
 
+const upsertBeneficiaryFromPayment = async (payment) => {
+  await Beneficiary.findOneAndUpdate(
+    {
+      userId: payment.userId,
+      recipientBankSwiftCode: payment.recipientBankSwiftCode,
+      accountNumber: payment.accountNumber
+    },
+    {
+      $set: {
+      recipientCompany: payment.recipientCompany,
+      recipientBank: payment.recipientBank,
+      recipientBankSwiftCode: payment.recipientBankSwiftCode,
+      accountNumber: payment.accountNumber,
+      recipientBankCountry: payment.recipientBankCountry,
+      recipientAddress: payment.recipientAddress,
+      recipientBankAddress: payment.recipientBankAddress,
+      lastUsedAt: new Date()
+      },
+      $inc: { useCount: 1 }
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+};
+
 /**
  * Get user's payment requests
  * @param {Object} req - Express request object
@@ -607,6 +632,11 @@ const reviewPayment = async (req, res) => {
     }
 
     await payment.save();
+    try {
+      await upsertBeneficiaryFromPayment(payment);
+    } catch (beneficiaryError) {
+      console.error('Beneficiary upsert warning:', beneficiaryError.message);
+    }
 
     res.status(200).json({
       success: true,
@@ -624,6 +654,52 @@ const reviewPayment = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while reviewing payment'
+    });
+  }
+};
+
+/**
+ * Get a fresh invoice URL for view/download (user or admin)
+ * @param {Object} req
+ * @param {Object} res
+ */
+const getPaymentInvoiceUrl = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const userId = req.user?._id;
+
+    const payment = await Payment.findById(paymentId).select(
+      'userId invoiceS3Key invoiceS3Bucket invoiceOriginalFileName invoiceFileName'
+    );
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    if (payment.userId.toString() !== userId.toString() && !req.user?.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    const invoiceUrl = await generateInvoiceUrl(payment.invoiceS3Key, payment.invoiceS3Bucket);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        invoiceUrl,
+        fileName: payment.invoiceOriginalFileName || payment.invoiceFileName
+      }
+    });
+  } catch (error) {
+    console.error('Get payment invoice URL error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while generating invoice URL'
     });
   }
 };
@@ -972,6 +1048,7 @@ export {
   getAllPayments,
   reviewPayment,
   getPaymentById,
+  getPaymentInvoiceUrl,
   actionPayment,
   uploadPaymentDocuments,
   approvePayment,

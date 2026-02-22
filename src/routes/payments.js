@@ -6,6 +6,7 @@ import {
   getAllPayments,
   reviewPayment,
   getPaymentById,
+  getPaymentInvoiceUrl,
   actionPayment,
   uploadPaymentDocuments,
   completePayment
@@ -32,6 +33,7 @@ router.get('/my-requests', requireAccountApproval, getUserPayments);
 router.get('/all', requireAdmin, getAllPayments);
 
 // User routes (continued - must come after /all to avoid conflict)
+router.get('/:paymentId/invoice-url', getPaymentInvoiceUrl);
 router.get('/:paymentId', getPaymentById);
 router.post('/:paymentId/documents', uploadPaymentDocuments);
 router.put('/:paymentId/review', requireAdmin, validatePaymentReview, reviewPayment);

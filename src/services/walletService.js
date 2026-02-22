@@ -249,6 +249,8 @@ class WalletService {
 
           return {
             transactionId: t._id,
+            fidelityPaymentId: fidelityPayment?._id || t.reference,
+            transactionRef: fidelityPayment?.transactionRef,
             amount: t.amount,
             description: t.description,
             previousBalance: t.previousBalance,

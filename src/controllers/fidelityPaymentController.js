@@ -22,6 +22,24 @@ const resolveDisplayAccountName = (providerAccountName, customerFullName) => {
     return normalizedProviderName || normalizedCustomerName;
 };
 
+const buildFundingReceiptLines = (payment) => {
+    return [
+        'Kenluk Funding Receipt',
+        '-----------------------',
+        `Receipt ID: ${payment._id}`,
+        `Transaction Ref: ${payment.transactionRef || '-'}`,
+        `Paygate Ref: ${payment.paygateTransactionRef || '-'}`,
+        `Amount: NGN ${Number(payment.amount || 0).toLocaleString()}`,
+        `Status: ${payment.status}`,
+        `Bank: ${payment.virtualAccount?.bankName || payment.fidelityResponse?.bankName || '-'}`,
+        `Account Number: ${payment.virtualAccount?.accountNumber || payment.fidelityResponse?.accountNumber || '-'}`,
+        `Account Name: ${payment.virtualAccount?.accountName || payment.fidelityResponse?.accountName || '-'}`,
+        `Created At: ${payment.createdAt ? new Date(payment.createdAt).toISOString() : '-'}`,
+        `Completed At: ${payment.completedAt ? new Date(payment.completedAt).toISOString() : '-'}`,
+        `Description: ${payment.description || '-'}`
+    ];
+};
+
 /**
  * Create virtual account for wallet funding
  * POST /api/payments/fidelity/create-virtual-account
@@ -672,11 +690,108 @@ export const retryPayment = async (req, res) => {
     }
 };
 
+/**
+ * Get structured funding receipt (owner/admin)
+ * GET /api/payments/fidelity/:paymentId/receipt
+ */
+export const getFundingReceipt = async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+        const requesterId = req.user?._id?.toString() || req.user?.id?.toString();
+        const isAdmin = Boolean(req.user?.isAdmin);
+
+        const payment = await FidelityPayment.findById(paymentId).populate('userId', 'name email');
+        if (!payment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Funding record not found'
+            });
+        }
+
+        if (!isAdmin && payment.userId?._id?.toString() !== requesterId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                paymentId: payment._id,
+                transactionRef: payment.transactionRef,
+                paygateTransactionRef: payment.paygateTransactionRef,
+                amount: payment.amount,
+                currency: payment.currency,
+                status: payment.status,
+                description: payment.description,
+                user: {
+                    name: payment.userId?.name,
+                    email: payment.userId?.email
+                },
+                virtualAccount: payment.virtualAccount,
+                createdAt: payment.createdAt,
+                completedAt: payment.completedAt
+            }
+        });
+    } catch (error) {
+        console.error('Get funding receipt error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error retrieving funding receipt',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Download funding receipt text file (owner/admin)
+ * GET /api/payments/fidelity/:paymentId/receipt/download
+ */
+export const downloadFundingReceipt = async (req, res) => {
+    try {
+        const { paymentId } = req.params;
+        const requesterId = req.user?._id?.toString() || req.user?.id?.toString();
+        const isAdmin = Boolean(req.user?.isAdmin);
+
+        const payment = await FidelityPayment.findById(paymentId);
+        if (!payment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Funding record not found'
+            });
+        }
+
+        if (!isAdmin && payment.userId?.toString() !== requesterId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        const lines = buildFundingReceiptLines(payment);
+        const fileName = `funding-receipt-${payment.transactionRef || payment._id}.txt`;
+
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        return res.status(200).send(lines.join('\n'));
+    } catch (error) {
+        console.error('Download funding receipt error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error downloading funding receipt',
+            error: error.message
+        });
+    }
+};
+
 
 export default {
   createVirtualAccount,
   getPaymentStatus,
   getPaymentHistory,
   handleWebhook,
-  retryPayment
+  retryPayment,
+  getFundingReceipt,
+  downloadFundingReceipt
 };

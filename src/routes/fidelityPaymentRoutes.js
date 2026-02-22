@@ -21,6 +21,8 @@ router.get('/:transactionRef/status', authenticate, fidelityPaymentController.ge
  * GET /api/payments/fidelity/history
  */
 router.get('/history', authenticate, fidelityPaymentController.getPaymentHistory);
+router.get('/:paymentId/receipt', authenticate, fidelityPaymentController.getFundingReceipt);
+router.get('/:paymentId/receipt/download', authenticate, fidelityPaymentController.downloadFundingReceipt);
 
 /**
  * Retry payment
