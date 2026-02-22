@@ -8,6 +8,7 @@ import {
   getPaymentById,
   getPaymentInvoiceUrl,
   actionPayment,
+  retryReapSubmission,
   uploadPaymentDocuments,
   completePayment
 } from '../controllers/paymentUploadController.js';
@@ -38,6 +39,7 @@ router.get('/:paymentId', getPaymentById);
 router.post('/:paymentId/documents', uploadPaymentDocuments);
 router.put('/:paymentId/review', requireAdmin, validatePaymentReview, reviewPayment);
 router.put('/:paymentId/action', requireAdmin, validatePaymentReview, actionPayment);
+router.put('/:paymentId/retry-reap', requireAdmin, retryReapSubmission);
 router.put('/:paymentId/complete', requireAdmin, completePayment);
 
 export default router;

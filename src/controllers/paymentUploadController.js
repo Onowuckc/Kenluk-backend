@@ -852,6 +852,66 @@ const actionPayment = async (req, res) => {
 };
 
 /**
+ * Retry sending an approved payment to Reap (Admin only)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const retryReapSubmission = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+
+    const payment = await Payment.findById(paymentId);
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    if (payment.status !== 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only approved payments can be retried for Reap submission'
+      });
+    }
+
+    let reapStatus = payment.reapStatus || 'not_sent';
+    let reapError = null;
+
+    try {
+      await sendToReapPaymentAPI(payment);
+      reapStatus = payment.reapStatus || 'sent';
+      reapError = null;
+    } catch (error) {
+      console.error('Retry Reap submission failed:', error.message);
+      reapStatus = payment.reapStatus || 'failed';
+      reapError = payment.reapErrorMessage || error.message;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message:
+        reapStatus === 'sent'
+          ? 'Payment successfully submitted to Reap'
+          : 'Reap submission failed. Check error details.',
+      data: {
+        paymentId: payment._id,
+        status: payment.status,
+        reapStatus,
+        reapError
+      }
+    });
+  } catch (error) {
+    console.error('Retry Reap submission error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while retrying Reap submission'
+    });
+  }
+};
+
+/**
  * Upload payment documents
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -1072,6 +1132,7 @@ export {
   getPaymentById,
   getPaymentInvoiceUrl,
   actionPayment,
+  retryReapSubmission,
   uploadPaymentDocuments,
   approvePayment,
   completePayment,
