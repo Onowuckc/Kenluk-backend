@@ -329,6 +329,15 @@ class WalletService {
         throw new Error('Payment must be approved before wallet debit');
       }
 
+      if (payment.reapStatus !== 'sent') {
+        const reapReason = payment.reapErrorMessage
+          ? `Reap error: ${payment.reapErrorMessage}`
+          : `Current Reap status: ${payment.reapStatus}`;
+        throw new Error(
+          `Cannot debit wallet before Reap accepts the payment request. ${reapReason}`
+        );
+      }
+
       const userId = payment.userId;
 
       const amount = payment.localAmount;
@@ -350,8 +359,8 @@ class WalletService {
 
       // Update payment status after successful debit
       payment.status = 'processing';
-      payment.approvedBy = approvedBy;
-      payment.approvedAt = new Date();
+      payment.approvedBy = payment.approvedBy || approvedBy;
+      payment.approvedAt = payment.approvedAt || new Date();
       payment.processedAt = new Date();
 
       await payment.save();
@@ -362,6 +371,7 @@ class WalletService {
         walletDebitAmount: amount,
         newWalletBalance: debitResult.newBalance,
         status: payment.status,
+        reapStatus: payment.reapStatus,
         message: 'Wallet debited successfully. Payment moved to processing.'
       };
     } catch (error) {
