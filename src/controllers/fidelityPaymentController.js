@@ -174,6 +174,7 @@ export const createVirtualAccount = async (req, res) => {
             customerLastName: resolvedLastName,
             customerMobile,
             transactionRef,
+            description,
             metadata
         });
 
@@ -185,6 +186,7 @@ export const createVirtualAccount = async (req, res) => {
             const virtualAccount = responseData?.virtual_account || responseData?.data?.virtual_account || providerResponse || responseData;
             const customerFullName = buildCustomerFullName(resolvedFirstName, resolvedLastName);
             const resolvedAccountName = resolveDisplayAccountName(virtualAccount?.account_name, customerFullName);
+            console.log(`Virtual Account Name Trace - transactionRef: ${transactionRef}, requestedName: ${customerFullName}, providerAccountName: ${virtualAccount?.account_name || '-'}, finalAccountName: ${resolvedAccountName || '-'}`);
 
             if (!virtualAccount?.account_number) {
                 fidelityPayment.status = 'FAILED';
@@ -616,6 +618,7 @@ export const retryPayment = async (req, res) => {
             customerLastName: payment.customer.lastName,
             customerMobile: payment.customer.phone,
             transactionRef: payment.transactionRef,
+            description: payment.description,
             metadata: payment.metadata
         });
 

@@ -3,7 +3,7 @@ import * as fidelityEncryption from '../utils/fidelityEncryption.js';
 
 const FIDELITY_API_URL = process.env.FIDELITY_API_URL || 'https://api.paygateplus.ng';
 const FIDELITY_API_KEY = process.env.FIDELITY_API_KEY;
-const FIDELITY_API_SECRET = process.env.FIDELITY_WEBHOOK_SECRET;
+const FIDELITY_API_SECRET = process.env.FIDELITY_API_SECRET || process.env.FIDELITY_WEBHOOK_SECRET;
 
 class FidelityPaymentService {
     /**
@@ -22,6 +22,7 @@ class FidelityPaymentService {
         return {
             'Authorization': `Bearer ${FIDELITY_API_KEY}`,
             'Signature': signature,
+            'request-ref': requestRef,
             'Content-Type': 'application/json'
         };
     }
@@ -40,6 +41,7 @@ class FidelityPaymentService {
                 customerLastName,
                 customerMobile,
                 transactionRef,
+                description,
                 metadata = {}
             } = paymentData;
 
@@ -68,22 +70,35 @@ class FidelityPaymentService {
             }
 
             const requestRef = fidelityEncryption.generateRequestRef();
+            const safeMetadata = metadata && typeof metadata === 'object' ? metadata : {};
+            const nameOnAccount = (
+                safeMetadata.name_on_account ||
+                safeMetadata.nameOnAccount ||
+                [customerFirstName, safeMetadata.middlename, customerLastName]
+                    .filter(Boolean)
+                    .join(' ')
+                    .trim()
+            );
+            const requestMeta = safeMetadata.meta && typeof safeMetadata.meta === 'object'
+                ? safeMetadata.meta
+                : {};
 
             // PaygatePlus API payload structure for open_account (EXACT format required)
             const requestBody = {
                 request_ref: requestRef,
                 request_type: "open_account",
                 auth: {
-                    type: "null",
-                    secure: null, // Will be set if encryption is needed
-                    auth_provider: "FidelityVirtual"
+                    type: null,
+                    secure: null,
+                    auth_provider: "FidelityVirtual",
+                    route_mode: safeMetadata.route_mode ?? safeMetadata.routeMode ?? null
                 },
                 transaction: {
-                    mock_mode: process.env.NODE_ENV === 'production' ? 'Live' : 'Live', // Always Live for production
+                    mock_mode: 'Live',
                     transaction_ref: transactionRef,
-                    transaction_desc: metadata.description || 'Wallet funding',
-                    transaction_ref_parent: "",
-                    amount: amount, // Amount already in kobo from controller
+                    transaction_desc: description || safeMetadata.description || 'Wallet funding',
+                    transaction_ref_parent: null,
+                    amount: amount,
                     customer: {
                         customer_ref: cleanPhone,
                         firstname: customerFirstName,
@@ -91,12 +106,18 @@ class FidelityPaymentService {
                         email: customerEmail,
                         mobile_no: cleanPhone
                     },
-                    meta: {
-                        send_email: true,
-                        currency: "NGN"
-                    },
+                    meta: requestMeta,
                     details: {
-                        page_slug: "bank_account"
+                        name_on_account: nameOnAccount || null,
+                        middlename: safeMetadata.middlename ?? null,
+                        dob: safeMetadata.dob ?? null,
+                        gender: safeMetadata.gender ?? null,
+                        title: safeMetadata.title ?? null,
+                        address_line_1: safeMetadata.address_line_1 ?? safeMetadata.addressLine1 ?? null,
+                        address_line_2: safeMetadata.address_line_2 ?? safeMetadata.addressLine2 ?? null,
+                        city: safeMetadata.city ?? null,
+                        state: safeMetadata.state ?? null,
+                        country: safeMetadata.country ?? null
                     }
                 }
             };
