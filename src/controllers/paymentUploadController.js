@@ -293,15 +293,12 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
       throw new Error('Missing Reap API configuration');
     }
 
-    // Determine network and currency based on bank country
-    const network = payment.recipientBankCountry === 'HK' ? 'FPS' : 'SWIFT';
-    // FPS only supports HKD or GBP, so use HKD for Hong Kong payments
-    const receivingCurrency = payment.recipientBankCountry === 'HK' ? 'HKD' : payment.foreignCurrency;
-
     // Convert country name to alpha-2 code for Reap API
     const countryCodeMap = {
       'China': 'CN',
       'Hong Kong': 'HK',
+      'Hongkong': 'HK',
+      'Hong Kong SAR': 'HK',
       'Nigeria': 'NG',
       'United States': 'US',
       'United Kingdom': 'GB',
@@ -314,6 +311,13 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
     };
 
     const providerCountry = countryCodeMap[payment.recipientBankCountry] || payment.recipientBankCountry;
+    const receivingCurrency = payment.foreignCurrency;
+    const isHongKong = providerCountry === 'HK' || providerCountry.toUpperCase() === 'HONG KONG';
+    const network = isHongKong && ['HKD', 'GBP'].includes(receivingCurrency) ? 'FPS' : 'SWIFT';
+
+    if (isHongKong && !['HKD', 'GBP'].includes(receivingCurrency)) {
+      console.warn(`[REAP DEBUG] Hong Kong recipient currency ${receivingCurrency} is not FPS-compatible, falling back to SWIFT`);
+    }
 
     // Build Reap API payload according to Postman collection
     const payload = {
@@ -374,18 +378,37 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
     });
     console.log('[REAP DEBUG] Payload snapshot:', JSON.stringify(payload, null, 2));
 
-    const response = await fetch(reapPaymentUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json;schema=PAAS',
-        'Accept': 'application/vnd.api+json; version=1.0.0',
-        'x-reap-api-key': apiKey,
-        'x-reap-entity-id': entityId
-      },
-      body: JSON.stringify(payload)
-    });
+    const timeoutMs = 15000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    const responseData = await response.json();
+    let response;
+    try {
+      response = await fetch(reapPaymentUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;schema=PAAS',
+          'Accept': 'application/vnd.api+json; version=1.0.0',
+          'x-reap-api-key': apiKey,
+          'x-reap-entity-id': entityId
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (parseError) {
+      const text = await response.text().catch(() => '');
+      responseData = {
+        parseError: parseError.message,
+        rawText: text
+      };
+    }
 
     // Store response snapshot
     payment.reapResponseSnapshot = {
@@ -406,7 +429,7 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
       payment.reapErrorMessage = undefined;
       payment.reapRawResponse = responseData;
       if (updatePaymentStatus) {
-        payment.status = 'processing';
+        payment.status = 'submitted_to_reap';
       }
       await payment.save();
       console.log('[REAP DEBUG] Payment successfully sent to Reap API:', payment.reapPaymentId);
@@ -646,15 +669,15 @@ const reviewPayment = async (req, res) => {
     let reapError = payment.reapErrorMessage || null;
     if (action === 'approve') {
       try {
-        await sendToReapPaymentAPI(payment);
-        reapStatus = payment.reapStatus || 'sent';
-        reapError = null;
-      } catch (error) {
-        console.error('Failed to send approved payment to Reap:', error.message);
-        reapStatus = payment.reapStatus || 'failed';
-        reapError = payment.reapErrorMessage || error.message;
-      }
+        await sendToReapPaymentAPI(payment, { updatePaymentStatus: true });
+      reapStatus = payment.reapStatus || 'sent';
+      reapError = null;
+    } catch (error) {
+      console.error('Failed to send approved payment to Reap:', error.message);
+      reapStatus = payment.reapStatus || 'failed';
+      reapError = payment.reapErrorMessage || error.message;
     }
+  }
 
     res.status(200).json({
       success: true,
@@ -819,7 +842,7 @@ const actionPayment = async (req, res) => {
     let reapError = null;
     if (action === 'approve') {
       try {
-        await sendToReapPaymentAPI(payment);
+        await sendToReapPaymentAPI(payment, { updatePaymentStatus: true });
         reapStatus = payment.reapStatus || 'sent';
         reapError = null;
       } catch (error) {
@@ -869,10 +892,10 @@ const retryReapSubmission = async (req, res) => {
       });
     }
 
-    if (payment.status !== 'approved') {
+    if (!['approved', 'submitted_to_reap'].includes(payment.status)) {
       return res.status(400).json({
         success: false,
-        message: 'Only approved payments can be retried for Reap submission'
+        message: 'Only approved or previously submitted payments can be retried for Reap submission'
       });
     }
 
@@ -880,7 +903,7 @@ const retryReapSubmission = async (req, res) => {
     let reapError = null;
 
     try {
-      await sendToReapPaymentAPI(payment);
+      await sendToReapPaymentAPI(payment, { updatePaymentStatus: true });
       reapStatus = payment.reapStatus || 'sent';
       reapError = null;
     } catch (error) {
@@ -1123,6 +1146,157 @@ const completePayment = async (req, res) => {
   }
 };
 
+/**
+ * Get structured payment receipt (owner/admin)
+ * GET /api/payments/:paymentId/receipt
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getPaymentReceipt = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const userId = req.user._id;
+    const isAdmin = req.user.role === 'admin';
+
+    const payment = await Payment.findById(paymentId).populate('userId', 'name email');
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    // Check authorization: only admin or the user who created it
+    if (!isAdmin && payment.userId._id.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        receiptId: payment._id,
+        reapPaymentId: payment.reapPaymentId,
+        date: payment.completedAt || payment.updatedAt,
+        status: payment.status,
+        reapStatus: payment.reapStatus,
+        recipientCompany: payment.recipientCompany,
+        accountNumber: payment.accountNumber,
+        bankName: payment.recipientBank,
+        foreignAmount: payment.foreignAmount,
+        foreignCurrency: payment.foreignCurrency,
+        localAmount: payment.localAmount,
+        localCurrency: 'NGN',
+        exchangeRate: payment.exchangeRate,
+        user: {
+          name: payment.userId.name,
+          email: payment.userId.email
+        },
+        reapErrorMessage: payment.reapErrorMessage || null
+      }
+    });
+
+  } catch (error) {
+    console.error('Get payment receipt error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving payment receipt',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Download payment receipt text file (owner/admin)
+ * GET /api/payments/:paymentId/receipt/download
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const downloadPaymentReceipt = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const userId = req.user._id;
+    const isAdmin = req.user.role === 'admin';
+
+    const payment = await Payment.findById(paymentId).populate('userId', 'name email');
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    // Check authorization: only admin or the user who created it
+    if (!isAdmin && payment.userId._id.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Generate receipt text
+    const dateStr = new Date(payment.completedAt || payment.updatedAt).toLocaleString();
+    const reapIdStr = payment.reapPaymentId ? `\nReap Payment ID:    ${payment.reapPaymentId}` : '';
+    const errorStr = payment.reapErrorMessage ? `\nReap Error:         ${payment.reapErrorMessage}` : '';
+    
+    const receiptText = `
+======================================================
+               KENLUK PAYMENT RECEIPT
+======================================================
+
+Transaction ID:     ${payment._id}${reapIdStr}
+Date:               ${dateStr}
+Status:             ${payment.status.toUpperCase()}
+Reap Status:        ${payment.reapStatus.toUpperCase()}${errorStr}
+
+------------------------------------------------------
+SENDER INFORMATION
+------------------------------------------------------
+Name:               ${payment.userId.name}
+Email:              ${payment.userId.email}
+
+------------------------------------------------------
+RECIPIENT INFORMATION
+------------------------------------------------------
+Company/Name:       ${payment.recipientCompany}
+Bank Name:          ${payment.recipientBank}
+Account Number:     ${payment.accountNumber}
+SWIFT Code:         ${payment.recipientBankSwiftCode}
+Country:            ${payment.recipientBankCountry}
+
+------------------------------------------------------
+TRANSACTION DETAILS
+------------------------------------------------------
+Sent Amount:        ${payment.foreignCurrency} ${payment.foreignAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+Local Amount:       NGN ${payment.localAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+Exchange Rate:      ${payment.exchangeRate}
+
+======================================================
+     Thank you for using Kenluk Payment Services
+======================================================
+`.trim();
+
+    // Set headers for file download
+    const fileName = `payment-receipt-${payment.reapPaymentId || payment._id}.txt`;
+    res.setHeader('Content-disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Content-type', 'text/plain');
+    
+    res.send(receiptText);
+
+  } catch (error) {
+    console.error('Download payment receipt error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error downloading payment receipt',
+      error: error.message
+    });
+  }
+};
+
 export {
   generateInvoiceUploadUrl,
   submitPaymentRequest,
@@ -1136,5 +1310,7 @@ export {
   uploadPaymentDocuments,
   approvePayment,
   completePayment,
-  sendToReapPaymentAPI
+  sendToReapPaymentAPI,
+  getPaymentReceipt,
+  downloadPaymentReceipt
 };

@@ -4,6 +4,26 @@ import User from '../models/User.js';
 import PlatformSettings from '../models/PlatformSettings.js';
 import FidelityPayment from '../models/FidelityPayment.js';
 
+// ─── Reap Payments — Production public key (RSA-SHA512 verification) ──────────
+// This is NOT a secret — it is Reap's published public key used to verify
+// the reap-signature header on incoming webhook payloads.
+const REAP_PUBLIC_KEY_PROD = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5JUURpniA359qJLwB9JW
+6tFAhc4ChqBiGSBaFTkgmK/XCrV8e/N7q57qq4DwymDk5+ALw8D6cKeG2QkWPDeB
+n3ly96sR14+8+2GfS7z82A194V9xEpZQfjF6DeMhidFjhINAAzJHPDiM7QCk9Dh4
+/Ny065vzZb0O3ek9Ivs6sbmOKXa/pGACN3k30XLkPu2XxBfeZN1rCFhdwE/wa7Bf
+h5AKiA104ais19ct5uf4vNkjG5DwevFK9WiqRVxwzadOyXCk4AdksdFx8ZkOuYWh
+rCdIt3Dc+pErfKIHloJ7kqA/8kiWWOP6fWbSSWrEtpLX5ieVsXnqhOYq8xA5WvEo
+HwIDAQAB
+-----END PUBLIC KEY-----`;
+
+// Sandbox key — set REAP_PUBLIC_KEY_SANDBOX env var to override for testing
+const REAP_PUBLIC_KEY_SANDBOX = process.env.REAP_PUBLIC_KEY_SANDBOX || REAP_PUBLIC_KEY_PROD;
+
+const getReapPublicKey = () =>
+  process.env.NODE_ENV === 'production' ? REAP_PUBLIC_KEY_PROD : REAP_PUBLIC_KEY_SANDBOX;
+
+
 /**
  * Verify Fidelity webhook signature
  * @param {string} payload - Raw request body
@@ -151,4 +171,211 @@ const handleFidelityWebhook = async (req, res) => {
   }
 };
 
-export { handleFidelityWebhook, verifyFidelitySignature, convertNgnToUsdt };
+// ─── Reap Payments Webhook Handler ───────────────────────────────────────────
+
+/**
+ * Verify the reap-signature header using RSA-SHA512 and Reap's public key.
+ * @param {string} rawBody - The raw JSON string of the request body
+ * @param {string} signature - Base64-encoded signature from reap-signature header
+ * @returns {boolean}
+ */
+const verifyReapSignature = (rawBody, signature) => {
+  try {
+    const publicKey = getReapPublicKey();
+    const verifier = crypto.createVerify('RSA-SHA512');
+    verifier.write(rawBody);
+    verifier.end();
+    return verifier.verify(publicKey, signature, 'base64');
+  } catch (err) {
+    console.error('[REAP WEBHOOK] Signature verification threw:', err.message);
+    return false;
+  }
+};
+
+/**
+ * Map a Reap payment status to local Payment model statuses.
+ *
+ * Confirmed Reap status values (from Postman "Simulate Payment Lifecycle"):
+ *   payout_completed   — funds successfully sent to recipient  → completed
+ *   requires_action    — payment needs an action (documents etc.) → processing
+ *   failed             — payment failed                         → failed
+ *   cancelled          — payment was cancelled                  → failed
+ *
+ * Internal Reap statuses that may appear before payout:
+ *   draft / awaiting_funds / processing → keep as processing
+ *
+ * @param {string} payloadStatus - The 'status' field from the Reap webhook payload
+ * @returns {{ status: string|null, reapStatus: string }}
+ */
+const mapReapStatus = (payloadStatus = '') => {
+  switch (payloadStatus.toLowerCase()) {
+    case 'payout_completed':
+      return { status: 'completed', reapStatus: 'completed' };
+
+    case 'failed':
+      return { status: 'failed', reapStatus: 'failed' };
+
+    case 'cancelled':
+    case 'canceled':
+      return { status: 'failed', reapStatus: 'failed' };
+
+    case 'requires_action':
+      // Payment needs action (e.g. document upload). Keep local status as-is
+      // but record the reapStatus so admin can see it.
+      return { status: null, reapStatus: 'processing' };
+
+    case 'draft':
+    case 'awaiting_funds':
+    case 'processing':
+      return { status: null, reapStatus: 'processing' };
+
+    default:
+      // Unknown status — log but don't overwrite local status
+      return { status: null, reapStatus: 'processing' };
+  }
+};
+
+/**
+ * Handle inbound webhook from Reap Payments.
+ * POST /api/webhooks/reap
+ *
+ * Reap signs every POST with RSA-SHA512 using their private key.
+ * We verify with their public key before touching any DB records.
+ */
+const handleReapWebhook = async (req, res) => {
+  const PREFIX = '[REAP WEBHOOK]';
+
+  try {
+    // ── 1. Signature verification ────────────────────────────────────────────
+    const signature = req.headers['reap-signature'];
+
+    if (!signature) {
+      console.warn(`${PREFIX} Missing reap-signature header — rejecting request`);
+      // Return 200 anyway so Reap doesn't keep retrying a misconfigured call;
+      // but log it clearly.
+      return res.status(200).json({
+        success: false,
+        message: 'Missing reap-signature header'
+      });
+    }
+
+    // express.json() already parsed the body; we need to re-serialize to the
+    // exact string Reap signed (JSON.stringify of what they sent).
+    let rawBody = req.body;
+    if (Buffer.isBuffer(rawBody)) {
+      rawBody = rawBody.toString('utf8');
+    } else if (typeof rawBody !== 'string') {
+      rawBody = JSON.stringify(rawBody);
+    }
+
+    const isValid = verifyReapSignature(rawBody, signature);
+
+    if (!isValid) {
+      console.warn(`${PREFIX} Signature verification FAILED — possible spoofed request`);
+      return res.status(200).json({
+        success: false,
+        message: 'Signature verification failed'
+      });
+    }
+
+    // ── 2. Parse payload ─────────────────────────────────────────────────────
+    let payload;
+    if (Buffer.isBuffer(req.body)) {
+      payload = JSON.parse(rawBody);
+    } else if (typeof req.body === 'string') {
+      payload = JSON.parse(req.body);
+    } else {
+      payload = req.body;
+    }
+
+    console.log(`${PREFIX} Verified payload received:`, JSON.stringify(payload));
+
+    // Reap webhook payload shape (confirmed from Postman collection):
+    // {
+    //   eventType: "payment",
+    //   eventName: "payment_status_update",
+    //   paymentId: "pid_xxx",          ← may also be nested in data
+    //   status:    "payout_completed", ← may also be nested in data
+    //   data: { paymentId, status, ... }
+    // }
+    const eventType     = payload.eventType  || payload.event_type  || '';
+    const eventName     = payload.eventName  || payload.event_name  || '';
+    const reapPaymentId =
+      payload.paymentId  ||
+      payload.payment_id ||
+      payload?.data?.paymentId ||
+      payload?.data?.payment_id ||
+      '';
+    const payloadStatus =
+      payload.status ||
+      payload?.data?.status ||
+      '';
+
+    console.log(`${PREFIX} eventType=${eventType} eventName=${eventName} paymentId=${reapPaymentId} status=${payloadStatus}`);
+
+    if (!reapPaymentId) {
+      console.warn(`${PREFIX} No paymentId in payload — ignoring:`, payload);
+      return res.status(200).json({ success: true, message: 'Webhook received — no paymentId, ignored' });
+    }
+
+    // ── 3. Find the Payment record ───────────────────────────────────────────
+    const payment = await Payment.findOne({ reapPaymentId });
+
+    if (!payment) {
+      console.warn(`${PREFIX} No Payment found for reapPaymentId: ${reapPaymentId}`);
+      return res.status(200).json({ success: true, message: 'Webhook received — payment record not found' });
+    }
+
+    // ── 4. Idempotency guard ─────────────────────────────────────────────────
+    if (payment.status === 'completed') {
+      console.log(`${PREFIX} Payment ${reapPaymentId} already completed — skipping`);
+      return res.status(200).json({ success: true, message: 'Payment already completed' });
+    }
+
+    // ── 5. Map status and persist ────────────────────────────────────────────
+    const { status: newStatus, reapStatus: newReapStatus } = mapReapStatus(payloadStatus);
+
+    payment.reapStatus      = newReapStatus;
+    payment.reapRawResponse = payload;         // store full event for audit
+
+    if (newStatus) {
+      payment.status = newStatus;
+    }
+
+    if (newStatus === 'completed') {
+      payment.completedAt = new Date();
+    }
+
+    if (newStatus === 'failed') {
+      // Capture whatever error/reason Reap provides
+      payment.reapErrorMessage =
+        payload?.data?.message ||
+        payload?.data?.failureReason ||
+        payload?.message ||
+        `Reap status: ${payloadStatus}`;
+    }
+
+    await payment.save();
+
+    console.log(
+      `${PREFIX} Payment ${payment._id} (reapId: ${reapPaymentId}) → status: ${payment.status}, reapStatus: ${payment.reapStatus}`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Webhook processed successfully',
+      data: { paymentId: payment._id, status: payment.status, reapStatus: payment.reapStatus }
+    });
+
+  } catch (error) {
+    console.error(`${PREFIX} Unhandled error:`, error.message);
+    // Always return 200 so Reap doesn't retry endlessly
+    return res.status(200).json({
+      success: false,
+      message: 'Internal error while processing webhook',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+export { handleFidelityWebhook, verifyFidelitySignature, convertNgnToUsdt, handleReapWebhook };

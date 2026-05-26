@@ -10,7 +10,10 @@ import {
   actionPayment,
   retryReapSubmission,
   uploadPaymentDocuments,
-  completePayment
+  approvePayment,
+  completePayment,
+  getPaymentReceipt,
+  downloadPaymentReceipt
 } from '../controllers/paymentUploadController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { requireAccountApproval } from '../middleware/accountApproval.js';
@@ -41,5 +44,7 @@ router.put('/:paymentId/review', requireAdmin, validatePaymentReview, reviewPaym
 router.put('/:paymentId/action', requireAdmin, validatePaymentReview, actionPayment);
 router.put('/:paymentId/retry-reap', requireAdmin, retryReapSubmission);
 router.put('/:paymentId/complete', requireAdmin, completePayment);
+router.get('/:paymentId/receipt', getPaymentReceipt);
+router.get('/:paymentId/receipt/download', downloadPaymentReceipt);
 
 export default router;

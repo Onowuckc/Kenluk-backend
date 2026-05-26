@@ -28,6 +28,7 @@ import walletRoutes from './routes/walletRoutes.js';
 import fidelityPaymentRoutes from './routes/fidelityPaymentRoutes.js';
 import beneficiaryRoutes from './routes/beneficiaries.js';
 import logsRoutes from './routes/logs.js';
+import { subscribeReapWebhooks } from './utils/reapWebhookSubscription.js';
 
 // Import middleware
 import errorHandler from './middleware/errorHandler.js';
@@ -40,7 +41,11 @@ import connectDB from './config/database.js';
 const app = express();
 
 // Connect to MongoDB
-connectDB();
+connectDB().then(() => {
+  // Register Reap webhook subscriptions after DB is ready.
+  // Safe to call on every boot — duplicate subscriptions are silently skipped.
+  subscribeReapWebhooks();
+});
 
 // Middleware
 app.use(cors({
@@ -58,7 +63,21 @@ app.options('*', cors({
   exposedHeaders: ['X-Request-Id'],
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
+
+// Keep the raw webhook body for Reap signature verification.
+app.use('/api/webhooks/reap', express.raw({
+  type: ['application/json', 'application/vnd.api+json'],
+  limit: '10mb'
+}));
+
+const jsonBodyParser = express.json({ limit: '10mb' });
+app.use((req, res, next) => {
+  if (req.path === '/api/webhooks/reap' && req.method === 'POST') {
+    return next();
+  }
+  return jsonBodyParser(req, res, next);
+});
+
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(requestContext);
