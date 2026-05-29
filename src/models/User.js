@@ -38,6 +38,12 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  accountType: {
+    type: String,
+    enum: ['customer', 'company'],
+    default: 'customer',
+    index: true
+  },
   accountStatus: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],

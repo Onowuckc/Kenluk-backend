@@ -1,3 +1,5 @@
+import { isCompanyPaymentAccount } from '../utils/companyPaymentAccount.js';
+
 /**
  * Middleware to enforce account approval for restricted features
  * @param {Object} req - Express request object
@@ -12,7 +14,7 @@ const requireAccountApproval = (req, res, next) => {
     });
   }
 
-  if (req.user.accountStatus !== 'approved') {
+  if (req.user.accountStatus !== 'approved' && !isCompanyPaymentAccount(req.user)) {
     return res.status(403).json({
       success: false,
       message: 'Account approval required to access this feature'

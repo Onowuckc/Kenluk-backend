@@ -3,6 +3,7 @@ import WalletTransaction from '../models/WalletTransaction.js';
 import FidelityPayment from '../models/FidelityPayment.js';
 import Payment from '../models/Payment.js';
 import PlatformSettings from '../models/PlatformSettings.js';
+import { isCompanyPaymentAccount } from '../utils/companyPaymentAccount.js';
 
 class WalletService {
   /**
@@ -319,7 +320,7 @@ class WalletService {
    */
   static async approvePaymentWithWalletDebit(paymentId, approvedBy) {
     try {
-      const payment = await Payment.findById(paymentId);
+      const payment = await Payment.findById(paymentId).populate('userId', 'email accountType');
 
       if (!payment) {
         throw new Error('Payment not found');
@@ -338,9 +339,28 @@ class WalletService {
         );
       }
 
-      const userId = payment.userId;
+      const userId = payment.userId?._id || payment.userId;
 
       const amount = payment.localAmount;
+
+      if (isCompanyPaymentAccount(payment.userId)) {
+        payment.status = 'processing';
+        payment.approvedBy = payment.approvedBy || approvedBy;
+        payment.approvedAt = payment.approvedAt || new Date();
+        payment.processedAt = new Date();
+
+        await payment.save();
+
+        return {
+          success: true,
+          paymentId: payment._id,
+          walletDebitAmount: 0,
+          newWalletBalance: null,
+          status: payment.status,
+          reapStatus: payment.reapStatus,
+          message: 'Company payment approved without wallet debit. Payment moved to processing.'
+        };
+      }
 
       // Validate wallet balance
       const hasBalance = await this.validateBalance(userId, amount);

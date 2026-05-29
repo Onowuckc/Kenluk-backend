@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import { generateAuthTokens } from '../utils/generateToken.js';
 import { sendEmail } from '../config/mailer.js';
 import { generateVerificationEmail, generatePasswordResetEmail, generateWelcomeEmail } from '../utils/emailTemplates.js';
+import { isCompanyPaymentAccount } from '../utils/companyPaymentAccount.js';
 
 /**
  * Register a new user
@@ -127,6 +128,8 @@ const login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
+    const companyPaymentAccount = isCompanyPaymentAccount(user);
+
     res.status(200).json({
       success: true,
       message: 'Login successful',
@@ -137,7 +140,8 @@ const login = async (req, res) => {
           email: user.email,
           isVerified: user.isVerified,
           role: user.isAdmin ? 'admin' : 'user',
-          accountStatus: user.accountStatus,
+          accountType: companyPaymentAccount ? 'company' : user.accountType || 'customer',
+          accountStatus: companyPaymentAccount ? 'approved' : user.accountStatus,
           documentsSubmitted: user.documentsSubmitted
         },
         tokens: {
@@ -492,6 +496,8 @@ const adminLogin = async (req, res) => {
 
     logMessage(`🎉 Admin login successful for: ${email}`);
 
+    const companyPaymentAccount = isCompanyPaymentAccount(user);
+
     res.status(200).json({
       success: true,
       message: 'Admin login successful',
@@ -502,7 +508,8 @@ const adminLogin = async (req, res) => {
           email: user.email,
           isVerified: user.isVerified,
           role: 'admin',
-          accountStatus: user.accountStatus,
+          accountType: companyPaymentAccount ? 'company' : user.accountType || 'customer',
+          accountStatus: companyPaymentAccount ? 'approved' : user.accountStatus,
           documentsSubmitted: user.documentsSubmitted
         },
         tokens: {
@@ -564,6 +571,8 @@ const verify = async (req, res) => {
       });
     }
 
+    const companyPaymentAccount = isCompanyPaymentAccount(user);
+
     res.status(200).json({
       success: true,
       message: 'Token verified successfully',
@@ -573,8 +582,9 @@ const verify = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.isAdmin ? 'admin' : 'user',
+          accountType: companyPaymentAccount ? 'company' : user.accountType || 'customer',
           isVerified: user.isVerified,
-          accountStatus: user.accountStatus,
+          accountStatus: companyPaymentAccount ? 'approved' : user.accountStatus,
           documentsSubmitted: user.documentsSubmitted
         }
       }
