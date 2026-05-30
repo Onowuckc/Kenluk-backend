@@ -53,7 +53,7 @@ async function testReapIntegration() {
     }
   };
 
-  const reapUrl = process.env.REAP_PAYMENT_API_URL || 'https://sandbox.payments.reap.global/api/payments';
+  const reapUrl = process.env.REAP_PAYMENT_API_URL || 'https://payments.reap.global/api/payments';
   const apiKey = process.env.REAP_PAYMENT_API_KEY;
   const entityId = process.env.REAP_ENTITY_ID;
 

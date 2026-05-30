@@ -435,7 +435,10 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
       console.log('[REAP DEBUG] Payment successfully sent to Reap API:', payment.reapPaymentId);
     } else {
       // Handle API error
-      const errorMessage = responseData.message || `HTTP ${response.status}: ${response.statusText}`;
+      let errorMessage = responseData.message || `HTTP ${response.status}: ${response.statusText}`;
+      if (response.status === 403) {
+        errorMessage = `${errorMessage}. Check that REAP_PAYMENT_API_URL matches the API key environment (sandbox vs production).`;
+      }
       payment.reapStatus = 'failed';
       payment.reapErrorMessage = errorMessage;
       payment.reapRawResponse = responseData;

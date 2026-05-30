@@ -1,4 +1,5 @@
 import WalletService from '../services/walletService.js';
+import { isCompanyPaymentAccount } from '../utils/companyPaymentAccount.js';
 
 /**
  * Get or create wallet for user
@@ -171,6 +172,18 @@ const validateBalance = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Invalid amount'
+      });
+    }
+
+    if (isCompanyPaymentAccount(req.user)) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          isValid: true,
+          requiredAmount: amount,
+          currentBalance: 0,
+          message: 'Company payment account uses direct Reap funding; wallet balance is not required'
+        }
       });
     }
 
