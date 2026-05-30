@@ -276,6 +276,16 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
   console.log(`[REAP DEBUG] Starting Reap API call for payment ${payment._id}`);
 
   try {
+    const readEnvValue = (name) => {
+      const value = process.env[name];
+      return typeof value === 'string' ? value.trim().replace(/^["']|["']$/g, '') : value;
+    };
+
+    const maskValue = (value) => {
+      if (!value) return '[MISSING]';
+      return value.length > 8 ? `***${value.slice(-4)}` : '[PRESENT]';
+    };
+
     // Log environment variables presence (not values)
     const envVars = {
       REAP_PAYMENT_API_URL: !!process.env.REAP_PAYMENT_API_URL,
@@ -284,9 +294,9 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
     };
     console.log('[REAP DEBUG] Environment variables check:', envVars);
 
-    const reapPaymentUrl = process.env.REAP_PAYMENT_API_URL || 'https://payments.reap.global/api/payments';
-    const apiKey = process.env.REAP_PAYMENT_API_KEY;
-    const entityId = process.env.REAP_ENTITY_ID;
+    const reapPaymentUrl = readEnvValue('REAP_PAYMENT_API_URL') || 'https://payments.reap.global/api/payments';
+    const apiKey = readEnvValue('REAP_PAYMENT_API_KEY');
+    const entityId = readEnvValue('REAP_ENTITY_ID');
 
     if (!apiKey || !entityId) {
       console.error('[REAP DEBUG] Reap Payment API configuration missing - REAP_PAYMENT_API_KEY or REAP_ENTITY_ID not set');
@@ -373,8 +383,8 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
     console.log('[REAP DEBUG] Request headers (excluding secrets):', {
       'Content-Type': 'application/json;schema=PAAS',
       'Accept': 'application/vnd.api+json; version=1.0.0',
-      'x-reap-api-key': '[PRESENT]',
-      'x-reap-entity-id': '[PRESENT]'
+      'x-reap-api-key': maskValue(apiKey),
+      'x-reap-entity-id': maskValue(entityId)
     });
     console.log('[REAP DEBUG] Payload snapshot:', JSON.stringify(payload, null, 2));
 
@@ -437,7 +447,7 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
       // Handle API error
       let errorMessage = responseData.message || `HTTP ${response.status}: ${response.statusText}`;
       if (response.status === 403) {
-        errorMessage = `${errorMessage}. Check that REAP_PAYMENT_API_URL matches the API key environment (sandbox vs production).`;
+        errorMessage = `${errorMessage}. Reap rejected the production credentials; verify the API key belongs to REAP_ENTITY_ID, the entity is enabled for payments, and any production IP allowlist includes this server.`;
       }
       payment.reapStatus = 'failed';
       payment.reapErrorMessage = errorMessage;
