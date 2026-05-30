@@ -7,6 +7,21 @@ import s3Client from '../config/s3Client.js';
 import { v4 as uuidv4 } from 'uuid';
 import fetch from 'node-fetch';
 
+const readEnvValue = (name) => {
+  const value = process.env[name];
+  return typeof value === 'string' ? value.trim().replace(/^["']|["']$/g, '') : value;
+};
+
+const maskValue = (value) => {
+  if (!value) return '[MISSING]';
+  return value.length > 8 ? `***${value.slice(-4)}` : '[PRESENT]';
+};
+
+const getReapApiBaseUrl = () => {
+  const configuredUrl = readEnvValue('REAP_PAYMENT_API_URL') || 'https://payments.reap.global/api/payments';
+  return configuredUrl.replace(/\/payments\/?$/, '').replace(/\/$/, '');
+};
+
 /**
  * Generate pre-signed URL for invoice upload to S3
  * @param {Object} req - Express request object
@@ -276,16 +291,6 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
   console.log(`[REAP DEBUG] Starting Reap API call for payment ${payment._id}`);
 
   try {
-    const readEnvValue = (name) => {
-      const value = process.env[name];
-      return typeof value === 'string' ? value.trim().replace(/^["']|["']$/g, '') : value;
-    };
-
-    const maskValue = (value) => {
-      if (!value) return '[MISSING]';
-      return value.length > 8 ? `***${value.slice(-4)}` : '[PRESENT]';
-    };
-
     // Log environment variables presence (not values)
     const envVars = {
       REAP_PAYMENT_API_URL: !!process.env.REAP_PAYMENT_API_URL,
@@ -467,6 +472,69 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
     await payment.save();
 
     throw error;
+  }
+};
+
+/**
+ * Admin: Check whether Reap credentials are accepted before sending a payment.
+ */
+const checkReapHealth = async (req, res) => {
+  try {
+    const apiKey = readEnvValue('REAP_PAYMENT_API_KEY');
+    const entityId = readEnvValue('REAP_ENTITY_ID');
+    const reapUrl = `${getReapApiBaseUrl()}/account-info`;
+
+    if (!apiKey || !entityId) {
+      return res.status(500).json({
+        success: false,
+        message: 'Missing Reap API configuration',
+        data: {
+          apiKey: maskValue(apiKey),
+          entityId: maskValue(entityId)
+        }
+      });
+    }
+
+    const response = await fetch(reapUrl, {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        'x-reap-api-key': apiKey,
+        'x-reap-entity-id': entityId
+      }
+    });
+
+    let responseData;
+    try {
+      responseData = await response.json();
+    } catch (parseError) {
+      responseData = {
+        parseError: parseError.message,
+        rawText: await response.text().catch(() => '')
+      };
+    }
+
+    return res.status(response.ok ? 200 : response.status).json({
+      success: response.ok,
+      message: response.ok
+        ? 'Reap credentials accepted'
+        : 'Reap credentials check failed',
+      data: {
+        url: reapUrl,
+        status: response.status,
+        statusText: response.statusText,
+        apiKey: maskValue(apiKey),
+        entityId: maskValue(entityId),
+        response: responseData
+      }
+    });
+  } catch (error) {
+    console.error('Reap health check error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while checking Reap credentials',
+      error: error.message
+    });
   }
 };
 
@@ -1320,6 +1388,7 @@ export {
   getPaymentInvoiceUrl,
   actionPayment,
   retryReapSubmission,
+  checkReapHealth,
   uploadPaymentDocuments,
   approvePayment,
   completePayment,

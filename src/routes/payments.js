@@ -9,6 +9,7 @@ import {
   getPaymentInvoiceUrl,
   actionPayment,
   retryReapSubmission,
+  checkReapHealth,
   uploadPaymentDocuments,
   approvePayment,
   completePayment,
@@ -35,6 +36,7 @@ router.get('/my-requests', requireAccountApproval, getUserPayments);
 
 // Admin routes
 router.get('/all', requireAdmin, getAllPayments);
+router.get('/reap-health', requireAdmin, checkReapHealth);
 
 // User routes (continued - must come after /all to avoid conflict)
 router.get('/:paymentId/invoice-url', getPaymentInvoiceUrl);
