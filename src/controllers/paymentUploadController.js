@@ -22,6 +22,24 @@ const getReapApiBaseUrl = () => {
   return configuredUrl.replace(/\/payments\/?$/, '').replace(/\/$/, '');
 };
 
+const getReapTraceHeaders = (headers) => {
+  const names = [
+    'x-request-id',
+    'x-correlation-id',
+    'x-reap-request-id',
+    'request-id',
+    'cf-ray'
+  ];
+
+  return names.reduce((traceHeaders, name) => {
+    const value = headers.get(name);
+    if (value) {
+      traceHeaders[name] = value;
+    }
+    return traceHeaders;
+  }, {});
+};
+
 /**
  * Generate pre-signed URL for invoice upload to S3
  * @param {Object} req - Express request object
@@ -426,15 +444,18 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
     }
 
     // Store response snapshot
+    const traceHeaders = getReapTraceHeaders(response.headers);
     payment.reapResponseSnapshot = {
       status: response.status,
       statusText: response.statusText,
+      traceHeaders,
       data: responseData,
       timestamp: new Date().toISOString()
     };
     await payment.save();
 
     console.log('[REAP DEBUG] Reap API response status:', response.status);
+    console.log('[REAP DEBUG] Reap API trace headers:', JSON.stringify(traceHeaders, null, 2));
     console.log('[REAP DEBUG] Reap API response data:', JSON.stringify(responseData, null, 2));
 
     if (response.ok) {
@@ -523,6 +544,7 @@ const checkReapHealth = async (req, res) => {
         url: reapUrl,
         status: response.status,
         statusText: response.statusText,
+        traceHeaders: getReapTraceHeaders(response.headers),
         apiKey: maskValue(apiKey),
         entityId: maskValue(entityId),
         response: responseData
