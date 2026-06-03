@@ -402,12 +402,19 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
     payment.reapPayloadSnapshot = payload;
     await payment.save();
 
-    console.log('[REAP DEBUG] Reap API URL:', reapPaymentUrl);
-    console.log('[REAP DEBUG] Request headers (excluding secrets):', {
+    const outboundHeaders = {
       'Content-Type': 'application/json;schema=PAAS',
       'Accept': 'application/vnd.api+json; version=1.0.0',
+      'x-reap-api-key': apiKey,
+      'x-reap-entity-id': entityId
+    };
+
+    console.log('[REAP DEBUG] Reap API URL:', reapPaymentUrl);
+    console.log('[REAP DEBUG] Request headers (API key masked):', {
+      'Content-Type': outboundHeaders['Content-Type'],
+      'Accept': outboundHeaders['Accept'],
       'x-reap-api-key': maskValue(apiKey),
-      'x-reap-entity-id': maskValue(entityId)
+      'x-reap-entity-id': outboundHeaders['x-reap-entity-id']
     });
     console.log('[REAP DEBUG] Payload snapshot:', JSON.stringify(payload, null, 2));
 
@@ -419,12 +426,7 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
     try {
       response = await fetch(reapPaymentUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json;schema=PAAS',
-          'Accept': 'application/vnd.api+json; version=1.0.0',
-          'x-reap-api-key': apiKey,
-          'x-reap-entity-id': entityId
-        },
+        headers: outboundHeaders,
         body: JSON.stringify(payload),
         signal: controller.signal
       });
