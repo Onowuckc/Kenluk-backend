@@ -80,6 +80,9 @@ const paymentSchema = new mongoose.Schema({
     required: true,
     enum: ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
   },
+  invoiceDetails: {
+    type: mongoose.Schema.Types.Mixed
+  },
   // Financial details
   foreignAmount: {
     type: Number,

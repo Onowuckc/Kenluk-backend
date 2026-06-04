@@ -22,6 +22,40 @@ const getReapApiBaseUrl = () => {
   return configuredUrl.replace(/\/payments\/?$/, '').replace(/\/$/, '');
 };
 
+const defaultInvoiceDetails = {
+  originalPayerName: 'Your Company Name',
+  originalPayerAddress: {
+    streetAddress: '123 Main St',
+    city: 'Hong Kong',
+    state: 'HK',
+    country: 'HK',
+    postalCode: '000000'
+  }
+};
+
+const normalizeInvoiceDetails = (invoiceDetails = {}) => ({
+  originalPayerName:
+    invoiceDetails?.originalPayerName?.trim?.() ||
+    defaultInvoiceDetails.originalPayerName,
+  originalPayerAddress: {
+    streetAddress:
+      invoiceDetails?.originalPayerAddress?.streetAddress?.trim?.() ||
+      defaultInvoiceDetails.originalPayerAddress.streetAddress,
+    city:
+      invoiceDetails?.originalPayerAddress?.city?.trim?.() ||
+      defaultInvoiceDetails.originalPayerAddress.city,
+    state:
+      invoiceDetails?.originalPayerAddress?.state?.trim?.() ||
+      defaultInvoiceDetails.originalPayerAddress.state,
+    country:
+      invoiceDetails?.originalPayerAddress?.country?.trim?.() ||
+      defaultInvoiceDetails.originalPayerAddress.country,
+    postalCode:
+      invoiceDetails?.originalPayerAddress?.postalCode?.trim?.() ||
+      defaultInvoiceDetails.originalPayerAddress.postalCode
+  }
+});
+
 const getReapTraceHeaders = (headers) => {
   const names = [
     'x-request-id',
@@ -225,7 +259,8 @@ const submitPaymentRequest = async (req, res) => {
       foreignAmount,
       foreignCurrency,
       localAmount,
-      exchangeRate
+      exchangeRate,
+      invoiceDetails
     } = req.body;
 
     const userId = req.user._id;
@@ -291,6 +326,8 @@ const submitPaymentRequest = async (req, res) => {
       }
     }
 
+    const normalizedInvoiceDetails = normalizeInvoiceDetails(invoiceDetails);
+
     // Build Reap payload for snapshot
     const reapPayload = {
       receivingParty: {
@@ -327,6 +364,7 @@ const submitPaymentRequest = async (req, res) => {
         senderCurrency: foreignCurrency,
         description: `Payment to ${recipientCompany.trim()}`,
         purposeOfPayment: 'payment_for_goods',
+        invoiceDetails: normalizedInvoiceDetails,
         metadata: {
           key: `Invoice: ${invoiceFileName}`
         }
@@ -349,6 +387,7 @@ const submitPaymentRequest = async (req, res) => {
       invoiceS3Bucket: invoiceBucketName,
       invoiceFileSize,
       invoiceMimeType,
+      invoiceDetails: normalizedInvoiceDetails,
       foreignAmount,
       foreignCurrency,
       localAmount,
@@ -478,6 +517,7 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
         senderCurrency: 'USDT', // Use USDT as sender currency (stablecoin)
         description: `Payment to ${payment.recipientCompany}`,
         purposeOfPayment: 'payment_for_goods',
+        invoiceDetails: normalizeInvoiceDetails(payment.invoiceDetails),
         metadata: {
           key: `Invoice: ${payment.invoiceOriginalFileName}`
         }
