@@ -5,7 +5,7 @@ import Beneficiary from '../models/Beneficiary.js';
 import PlatformSettings from '../models/PlatformSettings.js';
 import s3Client from '../config/s3Client.js';
 import { v4 as uuidv4 } from 'uuid';
-import fetch from 'node-fetch';
+import fetch, { Blob, FormData } from 'node-fetch';
 
 const readEnvValue = (name) => {
   const value = process.env[name];
@@ -38,6 +38,92 @@ const getReapTraceHeaders = (headers) => {
     }
     return traceHeaders;
   }, {});
+};
+
+const bodyToBuffer = async (body) => {
+  if (!body) return Buffer.alloc(0);
+  if (typeof body.transformToByteArray === 'function') {
+    return Buffer.from(await body.transformToByteArray());
+  }
+
+  const chunks = [];
+  for await (const chunk of body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+};
+
+const uploadInvoiceToReapPayment = async (payment, reapPaymentId, apiKey, entityId) => {
+  if (!payment.invoiceS3Key || !payment.invoiceS3Bucket || !reapPaymentId) {
+    console.warn('[REAP DEBUG] Skipping Reap invoice upload - missing invoice S3 data or Reap payment ID');
+    return null;
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: payment.invoiceS3Bucket,
+    Key: payment.invoiceS3Key
+  });
+
+  const s3Object = await s3Client.send(command);
+  const invoiceBuffer = await bodyToBuffer(s3Object.Body);
+  const invoiceBlob = new Blob([invoiceBuffer], {
+    type: payment.invoiceMimeType || s3Object.ContentType || 'application/octet-stream'
+  });
+
+  const formData = new FormData();
+  formData.append('files', invoiceBlob, payment.invoiceOriginalFileName || payment.invoiceFileName || 'invoice');
+
+  const documentsUrl = `${getReapApiBaseUrl()}/payments/${reapPaymentId}/documents`;
+  const headers = {
+    Accept: 'application/json',
+    'x-reap-api-key': apiKey,
+    'x-reap-entity-id': entityId
+  };
+
+  console.log('[REAP DEBUG] Reap invoice upload URL:', documentsUrl);
+  console.log('[REAP DEBUG] Reap invoice upload headers (API key masked):', {
+    Accept: headers.Accept,
+    'x-reap-api-key': maskValue(apiKey),
+    'x-reap-entity-id': entityId
+  });
+  console.log('[REAP DEBUG] Reap invoice upload file:', {
+    fileName: payment.invoiceOriginalFileName || payment.invoiceFileName,
+    mimeType: payment.invoiceMimeType || s3Object.ContentType,
+    size: invoiceBuffer.length
+  });
+
+  const response = await fetch(documentsUrl, {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (parseError) {
+    data = {
+      parseError: parseError.message,
+      rawText: await response.text().catch(() => '')
+    };
+  }
+
+  const result = {
+    status: response.status,
+    statusText: response.statusText,
+    traceHeaders: getReapTraceHeaders(response.headers),
+    data,
+    timestamp: new Date().toISOString()
+  };
+
+  console.log('[REAP DEBUG] Reap invoice upload response status:', response.status);
+  console.log('[REAP DEBUG] Reap invoice upload response data:', JSON.stringify(data, null, 2));
+
+  if (!response.ok) {
+    throw new Error(data?.message || `Invoice upload failed with HTTP ${response.status}`);
+  }
+
+  return result;
 };
 
 /**
@@ -471,6 +557,21 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
       }
       await payment.save();
       console.log('[REAP DEBUG] Payment successfully sent to Reap API:', payment.reapPaymentId);
+
+      try {
+        const documentUploadResult = await uploadInvoiceToReapPayment(payment, payment.reapPaymentId, apiKey, entityId);
+        if (documentUploadResult) {
+          payment.reapDocumentUploadResponse = documentUploadResult;
+          await payment.save();
+        }
+      } catch (documentError) {
+        payment.reapDocumentUploadResponse = {
+          error: documentError.message,
+          timestamp: new Date().toISOString()
+        };
+        await payment.save();
+        console.error('[REAP DEBUG] Reap invoice upload failed:', documentError.message);
+      }
     } else {
       // Handle API error
       let errorMessage = responseData.message || `HTTP ${response.status}: ${response.statusText}`;
