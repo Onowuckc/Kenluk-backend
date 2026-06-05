@@ -98,6 +98,26 @@ const validateEmailVerification = [
   handleValidationErrors
 ];
 
+const validateVerifyTwoFactor = [
+  body('email')
+    .trim()
+    .notEmpty()
+    .withMessage('Email is required')
+    .isEmail()
+    .withMessage('Please provide a valid email address')
+    .normalizeEmail(),
+
+  body('twoFactorCode')
+    .notEmpty()
+    .withMessage('Two-factor authentication code is required')
+    .isLength({ min: 6, max: 6 })
+    .withMessage('Two-factor authentication code must be 6 digits')
+    .matches(/^\d{6}$/)
+    .withMessage('Two-factor authentication code must contain only digits'),
+
+  handleValidationErrors
+];
+
 /**
  * Validation rules for resend verification code
  */
@@ -165,6 +185,16 @@ const validateProfileUpdate = [
     .isEmail()
     .withMessage('Please provide a valid email address')
     .normalizeEmail(),
+
+  handleValidationErrors
+];
+
+const validateTwoFactorUpdate = [
+  body('enabled')
+    .notEmpty()
+    .withMessage('Enabled flag is required')
+    .isBoolean()
+    .withMessage('Enabled must be true or false'),
 
   handleValidationErrors
 ];
@@ -403,6 +433,8 @@ export {
   validatePasswordResetRequest,
   validatePasswordReset,
   validateProfileUpdate,
+  validateTwoFactorUpdate,
+  validateVerifyTwoFactor,
   validateKycUploadUrl,
   validateKycConfirmUpload,
   validateDocumentReview,

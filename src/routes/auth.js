@@ -7,6 +7,7 @@ import {
   login,
   adminLogin,
   verifyEmail,
+  verifyTwoFactor,
   resendVerificationCode,
   requestPasswordReset,
   resetPassword,
@@ -21,6 +22,7 @@ import {
   validateRegistration,
   validateLogin,
   validateEmailVerification,
+  validateVerifyTwoFactor,
   validateResendVerificationCode,
   validatePasswordResetRequest,
   validatePasswordReset
@@ -48,6 +50,20 @@ router.post('/login', validateLogin, login);
  * @access  Public
  */
 router.post('/verify-email', validateEmailVerification, verifyEmail);
+
+/**
+ * @route   POST /api/auth/verify-2fa
+ * @desc    Verify user two-factor authentication code
+ * @access  Public
+ */
+router.post('/verify-2fa', validateVerifyTwoFactor, verifyTwoFactor);
+
+/**
+ * @route   POST /api/auth/resend-2fa
+ * @desc    Resend the two-factor authentication code
+ * @access  Public
+ */
+router.post('/resend-2fa', validateResendVerificationCode, resendTwoFactorCode);
 
 /**
  * @route   POST /api/auth/resend-verification

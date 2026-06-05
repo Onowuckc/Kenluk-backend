@@ -3,10 +3,11 @@ import express from 'express';
 const router = express.Router();
 
 // Import controllers
-import { getProfile, updateProfile, changePassword, deleteAccount } from '../controllers/userController.js';
+import { getProfile, updateProfile, changePassword, deleteAccount, updateTwoFactorSetting } from '../controllers/userController.js';
 
 // Import middleware
 import { authenticate } from '../middleware/auth.js';
+import { validateTwoFactorUpdate } from '../middleware/validation.js';
 
 /**
  * @route   GET /api/user/profile
@@ -21,6 +22,13 @@ router.get('/profile', authenticate, getProfile);
  * @access  Private
  */
 router.put('/profile', authenticate, updateProfile);
+
+/**
+ * @route   PUT /api/users/2fa
+ * @desc    Update two-factor authentication settings
+ * @access  Private
+ */
+router.put('/2fa', authenticate, validateTwoFactorUpdate, updateTwoFactorSetting);
 
 /**
  * @route   PUT /api/user/change-password

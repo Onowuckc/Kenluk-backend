@@ -106,6 +106,33 @@ const login = async (req, res) => {
       });
     }
 
+    // If user has 2FA enabled, send a one-time code and require verification.
+    if (user.twoFactorEnabled) {
+      const twoFactorCode = Math.floor(100000 + Math.random() * 900000).toString();
+      user.twoFactorCode = twoFactorCode;
+      user.twoFactorCodeExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+      await user.save();
+
+      try {
+        await sendEmail(
+          user.email,
+          'Your Kenluk 2FA Code',
+          `<p>Your login code is <strong>${twoFactorCode}</strong>. It expires in 10 minutes.</p>`
+        );
+      } catch (emailError) {
+        console.error('Failed to send 2FA email:', emailError);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Two-factor authentication code sent to your email',
+        data: {
+          twoFactorRequired: true,
+          email: user.email
+        }
+      });
+    }
+
     // Update last login
     user.lastLogin = new Date();
     await user.save();
@@ -142,7 +169,8 @@ const login = async (req, res) => {
           role: user.isAdmin ? 'admin' : 'user',
           accountType: companyPaymentAccount ? 'company' : user.accountType || 'customer',
           accountStatus: companyPaymentAccount ? 'approved' : user.accountStatus,
-          documentsSubmitted: user.documentsSubmitted
+          documentsSubmitted: user.documentsSubmitted,
+          twoFactorEnabled: user.twoFactorEnabled
         },
         tokens: {
           accessToken: tokens.accessToken,
@@ -233,6 +261,155 @@ const verifyEmail = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error during email verification'
+    });
+  }
+};
+
+/**
+ * Verify 2FA code and complete login
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const verifyTwoFactor = async (req, res) => {
+  try {
+    const { email, twoFactorCode } = req.body;
+
+    const user = await User.findOne({ email }).select('+password');
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (!user.twoFactorEnabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'Two-factor authentication is not enabled for this account'
+      });
+    }
+
+    if (!user.twoFactorCode || user.twoFactorCode !== twoFactorCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid 2FA code'
+      });
+    }
+
+    if (user.twoFactorCodeExpire < Date.now()) {
+      return res.status(400).json({
+        success: false,
+        message: '2FA code has expired. Please try logging in again.'
+      });
+    }
+
+    user.twoFactorCode = undefined;
+    user.twoFactorCodeExpire = undefined;
+    user.lastLogin = new Date();
+    await user.save();
+
+    const tokens = generateAuthTokens(user._id, user.email);
+
+    // Set cookies
+    res.cookie('accessToken', tokens.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+
+    res.cookie('refreshToken', tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    const companyPaymentAccount = isCompanyPaymentAccount(user);
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          isVerified: user.isVerified,
+          role: user.isAdmin ? 'admin' : 'user',
+          accountType: companyPaymentAccount ? 'company' : user.accountType || 'customer',
+          accountStatus: companyPaymentAccount ? 'approved' : user.accountStatus,
+          documentsSubmitted: user.documentsSubmitted,
+          twoFactorEnabled: user.twoFactorEnabled
+        },
+        tokens: {
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken
+        }
+      }
+    });
+  } catch (error) {
+    console.error('2FA verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during 2FA verification'
+    });
+  }
+};
+
+/**
+ * Resend 2FA code for pending two-factor authentication
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const resendTwoFactorCode = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (!user.twoFactorEnabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'Two-factor authentication is not enabled for this account'
+      });
+    }
+
+    const twoFactorCode = Math.floor(100000 + Math.random() * 900000).toString();
+    user.twoFactorCode = twoFactorCode;
+    user.twoFactorCodeExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save();
+
+    try {
+      await sendEmail(
+        email,
+        'Your Kenluk 2FA Code',
+        `<p>Your new login code is <strong>${twoFactorCode}</strong>. It expires in 10 minutes.</p>`
+      );
+    } catch (emailError) {
+      console.error('Failed to send 2FA resend email:', emailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send 2FA code'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'A new 2FA code has been sent to your email'
+    });
+  } catch (error) {
+    console.error('Resend 2FA code error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during 2FA resend'
     });
   }
 };
@@ -510,7 +687,8 @@ const adminLogin = async (req, res) => {
           role: 'admin',
           accountType: companyPaymentAccount ? 'company' : user.accountType || 'customer',
           accountStatus: companyPaymentAccount ? 'approved' : user.accountStatus,
-          documentsSubmitted: user.documentsSubmitted
+          documentsSubmitted: user.documentsSubmitted,
+          twoFactorEnabled: user.twoFactorEnabled
         },
         tokens: {
           accessToken: tokens.accessToken,
@@ -585,7 +763,8 @@ const verify = async (req, res) => {
           accountType: companyPaymentAccount ? 'company' : user.accountType || 'customer',
           isVerified: user.isVerified,
           accountStatus: companyPaymentAccount ? 'approved' : user.accountStatus,
-          documentsSubmitted: user.documentsSubmitted
+          documentsSubmitted: user.documentsSubmitted,
+          twoFactorEnabled: user.twoFactorEnabled
         }
       }
     });

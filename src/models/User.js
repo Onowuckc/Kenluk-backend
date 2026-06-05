@@ -38,6 +38,12 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  twoFactorEnabled: {
+    type: Boolean,
+    default: false
+  },
+  twoFactorCode: String,
+  twoFactorCodeExpire: Date,
   accountType: {
     type: String,
     enum: ['customer', 'company'],

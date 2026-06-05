@@ -27,7 +27,8 @@ const getProfile = async (req, res) => {
           approved: user.approved,
           documentsSubmitted: user.documentsSubmitted,
           lastLogin: user.lastLogin,
-          createdAt: user.createdAt
+          createdAt: user.createdAt,
+          twoFactorEnabled: user.twoFactorEnabled
         }
       }
     });
@@ -88,7 +89,8 @@ const updateProfile = async (req, res) => {
           email: user.email,
           isVerified: user.isVerified,
           approved: user.approved,
-          documentsSubmitted: user.documentsSubmitted
+          documentsSubmitted: user.documentsSubmitted,
+          twoFactorEnabled: user.twoFactorEnabled
         }
       }
     });
@@ -194,9 +196,60 @@ const deleteAccount = async (req, res) => {
   }
 };
 
+/**
+ * Update two-factor authentication settings
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const updateTwoFactorSetting = async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const userId = req.user.userId;
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        twoFactorEnabled: enabled,
+        ...(enabled === false ? { twoFactorCode: undefined, twoFactorCodeExpire: undefined } : {})
+      },
+      { new: true, runValidators: true }
+    ).select('-password -resetPasswordToken -resetPasswordExpire -verificationToken -verificationCode -verificationCodeExpire');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Two-factor authentication ${enabled ? 'enabled' : 'disabled'} successfully`,
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          isVerified: user.isVerified,
+          approved: user.approved,
+          documentsSubmitted: user.documentsSubmitted,
+          twoFactorEnabled: user.twoFactorEnabled
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Update two-factor setting error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating two-factor settings'
+    });
+  }
+};
+
 export {
   getProfile,
   updateProfile,
   changePassword,
-  deleteAccount
+  deleteAccount,
+  updateTwoFactorSetting
 };
