@@ -953,6 +953,8 @@ export {
   login,
   adminLogin,
   verifyEmail,
+  verifyTwoFactor,
+  resendTwoFactorCode,
   resendVerificationCode,
   requestPasswordReset,
   resetPassword,
