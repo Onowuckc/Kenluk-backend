@@ -82,7 +82,7 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     // Find user and include password for comparison
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select('+password +twoFactorSecret');
 
     if (!user) {
       return res.status(401).json({
@@ -624,6 +624,18 @@ const adminLogin = async (req, res) => {
     }
 
     logMessage(`✅ Password verified for admin: ${email}`);
+
+    if (user.twoFactorEnabled) {
+      logMessage(`🔐 Admin 2FA required for: ${email}`);
+      return res.status(200).json({
+        success: true,
+        message: 'Enter the 6-digit code from your authenticator app',
+        data: {
+          twoFactorRequired: true,
+          email: user.email
+        }
+      });
+    }
 
     // Update last login
     user.lastLogin = new Date();
