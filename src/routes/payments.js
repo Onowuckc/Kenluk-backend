@@ -11,17 +11,18 @@ import {
   retryReapSubmission,
   checkReapHealth,
   uploadPaymentDocuments,
-  approvePayment,
   completePayment,
   getPaymentReceipt,
-  downloadPaymentReceipt
+  downloadPaymentReceipt,
+  reapPaymentAction
 } from '../controllers/paymentUploadController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { requireAccountApproval } from '../middleware/accountApproval.js';
 import {
   validateInvoiceUploadUrl,
   validatePaymentSubmission,
-  validatePaymentReview
+  validatePaymentReview,
+  validateReapAction
 } from '../middleware/validation.js';
 
 const router = express.Router();
@@ -44,6 +45,7 @@ router.get('/:paymentId', getPaymentById);
 router.post('/:paymentId/documents', uploadPaymentDocuments);
 router.put('/:paymentId/review', requireAdmin, validatePaymentReview, reviewPayment);
 router.put('/:paymentId/action', requireAdmin, validatePaymentReview, actionPayment);
+router.put('/:paymentId/reap-action', requireAdmin, validateReapAction, reapPaymentAction);
 router.put('/:paymentId/retry-reap', requireAdmin, retryReapSubmission);
 router.put('/:paymentId/complete', requireAdmin, completePayment);
 router.get('/:paymentId/receipt', getPaymentReceipt);

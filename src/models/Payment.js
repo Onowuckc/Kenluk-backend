@@ -135,6 +135,9 @@ const paymentSchema = new mongoose.Schema({
   reapRawResponse: {
     type: mongoose.Schema.Types.Mixed // Store full API response data
   },
+  reapActionResponse: {
+    type: mongoose.Schema.Types.Mixed
+  },
   reapDocumentUploadResponse: {
     type: mongoose.Schema.Types.Mixed
   },

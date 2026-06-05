@@ -598,19 +598,30 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
       await payment.save();
       console.log('[REAP DEBUG] Payment successfully sent to Reap API:', payment.reapPaymentId);
 
-      try {
-        const documentUploadResult = await uploadInvoiceToReapPayment(payment, payment.reapPaymentId, apiKey, entityId);
-        if (documentUploadResult) {
-          payment.reapDocumentUploadResponse = documentUploadResult;
-          await payment.save();
-        }
-      } catch (documentError) {
+      const reapQuoteStatus = responseData.status?.toLowerCase();
+      if (reapQuoteStatus === 'draft') {
         payment.reapDocumentUploadResponse = {
-          error: documentError.message,
+          skipped: 'Invoice upload skipped because Reap payment is still draft. Approve the payment quote before uploading documents.',
+          reapQuoteStatus,
           timestamp: new Date().toISOString()
         };
         await payment.save();
-        console.error('[REAP DEBUG] Reap invoice upload failed:', documentError.message);
+        console.log('[REAP DEBUG] Reap invoice upload skipped: payment quote is draft; approve quote before uploading documents.');
+      } else {
+        try {
+          const documentUploadResult = await uploadInvoiceToReapPayment(payment, payment.reapPaymentId, apiKey, entityId);
+          if (documentUploadResult) {
+            payment.reapDocumentUploadResponse = documentUploadResult;
+            await payment.save();
+          }
+        } catch (documentError) {
+          payment.reapDocumentUploadResponse = {
+            error: documentError.message,
+            timestamp: new Date().toISOString()
+          };
+          await payment.save();
+          console.error('[REAP DEBUG] Reap invoice upload failed:', documentError.message);
+        }
       }
     } else {
       // Handle API error
@@ -636,6 +647,143 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
     await payment.save();
 
     throw error;
+  }
+};
+
+const performReapPaymentAction = async (payment, action, message, apiKey, entityId) => {
+  if (!payment.reapPaymentId) {
+    throw new Error('Payment does not have a Reap payment ID');
+  }
+
+  const actionUrl = `${getReapApiBaseUrl()}/payments/${payment.reapPaymentId}/action`;
+  const payload = {
+    type: 'payment',
+    action
+  };
+
+  if (message) {
+    payload.message = message;
+  }
+
+  const outboundHeaders = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'x-reap-api-key': apiKey,
+    'x-reap-entity-id': entityId
+  };
+
+  console.log('[REAP DEBUG] Reap payment action URL:', actionUrl);
+  console.log('[REAP DEBUG] Reap payment action headers (API key masked):', {
+    'Content-Type': outboundHeaders['Content-Type'],
+    Accept: outboundHeaders['Accept'],
+    'x-reap-api-key': maskValue(apiKey),
+    'x-reap-entity-id': entityId
+  });
+  console.log('[REAP DEBUG] Reap payment action payload:', JSON.stringify(payload, null, 2));
+
+  const response = await fetch(actionUrl, {
+    method: 'PUT',
+    headers: outboundHeaders,
+    body: JSON.stringify(payload)
+  });
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (parseError) {
+    data = {
+      parseError: parseError.message,
+      rawText: await response.text().catch(() => '')
+    };
+  }
+
+  const result = {
+    status: response.status,
+    statusText: response.statusText,
+    traceHeaders: getReapTraceHeaders(response.headers),
+    data,
+    timestamp: new Date().toISOString()
+  };
+
+  console.log('[REAP DEBUG] Reap payment action response status:', response.status);
+  console.log('[REAP DEBUG] Reap payment action response data:', JSON.stringify(data, null, 2));
+
+  if (!response.ok) {
+    throw new Error(data?.message || `Reap payment action failed with HTTP ${response.status}`);
+  }
+
+  return result;
+};
+
+const reapPaymentAction = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const { action, message } = req.body;
+
+    const payment = await Payment.findById(paymentId);
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment request not found'
+      });
+    }
+
+    if (!payment.reapPaymentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment has not been submitted to Reap yet'
+      });
+    }
+
+    const apiKey = readEnvValue('REAP_PAYMENT_API_KEY');
+    const entityId = readEnvValue('REAP_ENTITY_ID');
+
+    if (!apiKey || !entityId) {
+      return res.status(500).json({
+        success: false,
+        message: 'Reap API configuration is missing'
+      });
+    }
+
+    const actionResult = await performReapPaymentAction(payment, action, message, apiKey, entityId);
+    payment.reapActionResponse = actionResult;
+
+    let uploadResult = null;
+    let uploadError = null;
+    if (['approve', 'accept_quote'].includes(action)) {
+      try {
+        uploadResult = await uploadInvoiceToReapPayment(payment, payment.reapPaymentId, apiKey, entityId);
+        if (uploadResult) {
+          payment.reapDocumentUploadResponse = uploadResult;
+        }
+      } catch (documentError) {
+        uploadError = documentError.message;
+        payment.reapDocumentUploadResponse = {
+          error: documentError.message,
+          timestamp: new Date().toISOString()
+        };
+      }
+    }
+
+    await payment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reap payment action completed successfully',
+      data: {
+        paymentId: payment._id,
+        action,
+        reapActionResponse: actionResult,
+        invoiceUploadResponse: uploadResult,
+        invoiceUploadError: uploadError || undefined
+      }
+    });
+  } catch (error) {
+    console.error('Reap payment action error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while performing Reap payment action'
+    });
   }
 };
 
@@ -1558,6 +1706,7 @@ export {
   approvePayment,
   completePayment,
   sendToReapPaymentAPI,
+  reapPaymentAction,
   getPaymentReceipt,
   downloadPaymentReceipt
 };

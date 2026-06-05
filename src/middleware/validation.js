@@ -380,6 +380,20 @@ const validatePaymentReview = [
   handleValidationErrors
 ];
 
+const validateReapAction = [
+  body('action')
+    .isIn(['approve', 'accept_quote', 'cancel'])
+    .withMessage('Action must be one of "approve", "accept_quote", or "cancel"'),
+
+  body('message')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Message must be 500 characters or less'),
+
+  handleValidationErrors
+];
+
 export {
   handleValidationErrors,
   validateRegistration,
@@ -394,5 +408,6 @@ export {
   validateDocumentReview,
   validateInvoiceUploadUrl,
   validatePaymentSubmission,
-  validatePaymentReview
+  validatePaymentReview,
+  validateReapAction
 };
