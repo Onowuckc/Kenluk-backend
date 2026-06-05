@@ -28,6 +28,7 @@ import walletRoutes from './routes/walletRoutes.js';
 import fidelityPaymentRoutes from './routes/fidelityPaymentRoutes.js';
 import beneficiaryRoutes from './routes/beneficiaries.js';
 import logsRoutes from './routes/logs.js';
+import contactRoutes from './routes/contact.js';
 import { subscribeReapWebhooks } from './utils/reapWebhookSubscription.js';
 
 // Import middleware
@@ -97,6 +98,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/beneficiaries', beneficiaryRoutes);
 app.use('/api/logs', logsRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
