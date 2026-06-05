@@ -42,6 +42,15 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  twoFactorSecret: {
+    type: String,
+    select: false
+  },
+  pendingTwoFactorSecret: {
+    type: String,
+    select: false
+  },
+  twoFactorEnabledAt: Date,
   twoFactorCode: String,
   twoFactorCodeExpire: Date,
   accountType: {

@@ -199,6 +199,18 @@ const validateTwoFactorUpdate = [
   handleValidationErrors
 ];
 
+const validateTwoFactorCode = [
+  body('twoFactorCode')
+    .notEmpty()
+    .withMessage('Two-factor authentication code is required')
+    .isLength({ min: 6, max: 6 })
+    .withMessage('Two-factor authentication code must be 6 digits')
+    .matches(/^\d{6}$/)
+    .withMessage('Two-factor authentication code must contain only digits'),
+
+  handleValidationErrors
+];
+
 /**
  * Validation rules for KYC document upload URL generation
  */
@@ -434,6 +446,7 @@ export {
   validatePasswordReset,
   validateProfileUpdate,
   validateTwoFactorUpdate,
+  validateTwoFactorCode,
   validateVerifyTwoFactor,
   validateKycUploadUrl,
   validateKycConfirmUpload,

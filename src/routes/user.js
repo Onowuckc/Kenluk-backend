@@ -3,11 +3,20 @@ import express from 'express';
 const router = express.Router();
 
 // Import controllers
-import { getProfile, updateProfile, changePassword, deleteAccount, updateTwoFactorSetting } from '../controllers/userController.js';
+import {
+  getProfile,
+  updateProfile,
+  changePassword,
+  deleteAccount,
+  startTwoFactorSetup,
+  confirmTwoFactorSetup,
+  disableTwoFactor,
+  updateTwoFactorSetting
+} from '../controllers/userController.js';
 
 // Import middleware
 import { authenticate } from '../middleware/auth.js';
-import { validateTwoFactorUpdate } from '../middleware/validation.js';
+import { validateTwoFactorCode, validateTwoFactorUpdate } from '../middleware/validation.js';
 
 /**
  * @route   GET /api/user/profile
@@ -22,6 +31,27 @@ router.get('/profile', authenticate, getProfile);
  * @access  Private
  */
 router.put('/profile', authenticate, updateProfile);
+
+/**
+ * @route   POST /api/users/2fa/setup
+ * @desc    Start authenticator app setup
+ * @access  Private
+ */
+router.post('/2fa/setup', authenticate, startTwoFactorSetup);
+
+/**
+ * @route   POST /api/users/2fa/confirm
+ * @desc    Confirm authenticator app setup
+ * @access  Private
+ */
+router.post('/2fa/confirm', authenticate, validateTwoFactorCode, confirmTwoFactorSetup);
+
+/**
+ * @route   POST /api/users/2fa/disable
+ * @desc    Disable authenticator app 2FA
+ * @access  Private
+ */
+router.post('/2fa/disable', authenticate, validateTwoFactorCode, disableTwoFactor);
 
 /**
  * @route   PUT /api/users/2fa

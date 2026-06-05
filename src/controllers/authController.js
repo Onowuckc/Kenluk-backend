@@ -4,6 +4,8 @@ import { generateAuthTokens } from '../utils/generateToken.js';
 import { sendEmail } from '../config/mailer.js';
 import { generateVerificationEmail, generatePasswordResetEmail, generateWelcomeEmail } from '../utils/emailTemplates.js';
 import { isCompanyPaymentAccount } from '../utils/companyPaymentAccount.js';
+import speakeasy from 'speakeasy';
+import { decryptTwoFactorSecret } from '../utils/twoFactor.js';
 
 /**
  * Register a new user
@@ -106,26 +108,11 @@ const login = async (req, res) => {
       });
     }
 
-    // If user has 2FA enabled, send a one-time code and require verification.
+    // If user has authenticator app 2FA enabled, require a TOTP code before issuing tokens.
     if (user.twoFactorEnabled) {
-      const twoFactorCode = Math.floor(100000 + Math.random() * 900000).toString();
-      user.twoFactorCode = twoFactorCode;
-      user.twoFactorCodeExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
-      await user.save();
-
-      try {
-        await sendEmail(
-          user.email,
-          'Your Kenluk 2FA Code',
-          `<p>Your login code is <strong>${twoFactorCode}</strong>. It expires in 10 minutes.</p>`
-        );
-      } catch (emailError) {
-        console.error('Failed to send 2FA email:', emailError);
-      }
-
       return res.status(200).json({
         success: true,
-        message: 'Two-factor authentication code sent to your email',
+        message: 'Enter the 6-digit code from your authenticator app',
         data: {
           twoFactorRequired: true,
           email: user.email
@@ -274,7 +261,7 @@ const verifyTwoFactor = async (req, res) => {
   try {
     const { email, twoFactorCode } = req.body;
 
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select('+password +twoFactorSecret');
 
     if (!user) {
       return res.status(400).json({
@@ -290,17 +277,25 @@ const verifyTwoFactor = async (req, res) => {
       });
     }
 
-    if (!user.twoFactorCode || user.twoFactorCode !== twoFactorCode) {
+    if (!user.twoFactorSecret) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid 2FA code'
+        message: 'Two-factor authentication setup is incomplete'
       });
     }
 
-    if (user.twoFactorCodeExpire < Date.now()) {
+    const secret = decryptTwoFactorSecret(user.twoFactorSecret);
+    const isValidCode = speakeasy.totp.verify({
+      secret,
+      encoding: 'base32',
+      token: twoFactorCode,
+      window: 1
+    });
+
+    if (!isValidCode) {
       return res.status(400).json({
         success: false,
-        message: '2FA code has expired. Please try logging in again.'
+        message: 'Invalid 2FA code'
       });
     }
 
@@ -382,28 +377,9 @@ const resendTwoFactorCode = async (req, res) => {
       });
     }
 
-    const twoFactorCode = Math.floor(100000 + Math.random() * 900000).toString();
-    user.twoFactorCode = twoFactorCode;
-    user.twoFactorCodeExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await user.save();
-
-    try {
-      await sendEmail(
-        email,
-        'Your Kenluk 2FA Code',
-        `<p>Your new login code is <strong>${twoFactorCode}</strong>. It expires in 10 minutes.</p>`
-      );
-    } catch (emailError) {
-      console.error('Failed to send 2FA resend email:', emailError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send 2FA code'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'A new 2FA code has been sent to your email'
+    res.status(400).json({
+      success: false,
+      message: 'Open your authenticator app to get a current 2FA code'
     });
   } catch (error) {
     console.error('Resend 2FA code error:', error);
