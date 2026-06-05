@@ -36,8 +36,7 @@ import requestContext from './middleware/requestContext.js';
 
 // Import database connection
 import connectDB from './config/database.js';
-// Import SMTP verification
-import { verifyConnection } from './config/mailer_smtp.js';
+// Import SMTP verification (Mailtrap API client)
 
 
 // Initialize Express app
@@ -152,13 +151,6 @@ app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
   logRoutes();
-  
-  // Verify SMTP connection for email service
-  try {
-    await verifyConnection();
-  } catch (error) {
-    console.error('⚠️ SMTP verification failed - emails may not be sent:', error.message);
-  }
 });
 
 export default app;

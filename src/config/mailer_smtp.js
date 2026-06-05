@@ -1,13 +1,13 @@
 import nodemailer from 'nodemailer';
 
-// Create transporter with SMTP configuration
+// Create transporter with Mailtrap SMTP configuration
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT || 587,
-  secure: process.env.SMTP_SECURE === 'true' || false, // true for 465, false for other ports
+  host: process.env.MAILTRAP_HOST || 'send.api.mailtrap.io',
+  port: parseInt(process.env.MAILTRAP_PORT) || 587,
+  secure: false,
   auth: {
-    user: process.env.SMTP_USER || process.env.MAIL_FROM,
-    pass: process.env.SMTP_PASS,
+    user: process.env.MAILTRAP_USER || 'api',
+    pass: process.env.MAILTRAP_PASS,
   },
 });
 
