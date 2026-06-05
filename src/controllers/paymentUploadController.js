@@ -514,7 +514,7 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
       payment: {
         receivingAmount: payment.foreignAmount,
         receivingCurrency: receivingCurrency,
-        senderCurrency: 'USDT', // Use USDT as sender currency (stablecoin)
+        senderCurrency: 'USDC', // Use USDC as sender currency (stablecoin)
         description: `Payment to ${payment.recipientCompany}`,
         purposeOfPayment: 'payment_for_goods',
         invoiceDetails: normalizeInvoiceDetails(payment.invoiceDetails),

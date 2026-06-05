@@ -44,7 +44,7 @@ async function testReapIntegration() {
     payment: {
       receivingAmount: 2000,
       receivingCurrency: 'HKD',
-      senderCurrency: 'USDT',
+      senderCurrency: 'USDC',
       description: 'Payment for FPS',
       purposeOfPayment: 'payment_for_goods',
       metadata: {
