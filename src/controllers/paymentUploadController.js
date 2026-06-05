@@ -453,24 +453,31 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
 
     // Convert country name to alpha-2 code for Reap API
     const countryCodeMap = {
-      'China': 'CN',
-      'Hong Kong': 'HK',
-      'Hongkong': 'HK',
-      'Hong Kong SAR': 'HK',
-      'Nigeria': 'NG',
-      'United States': 'US',
-      'United Kingdom': 'GB',
-      'Germany': 'DE',
-      'France': 'FR',
-      'Japan': 'JP',
-      'Canada': 'CA',
-      'Australia': 'AU',
-      'Switzerland': 'CH'
+      'china': 'CN',
+      'hong kong': 'HK',
+      'hongkong': 'HK',
+      'hong kong sar': 'HK',
+      'nigeria': 'NG',
+      'united states': 'US',
+      'united states of america': 'US',
+      'united kingdom': 'GB',
+      'great britain': 'GB',
+      'england': 'GB',
+      'germany': 'DE',
+      'france': 'FR',
+      'japan': 'JP',
+      'canada': 'CA',
+      'australia': 'AU',
+      'switzerland': 'CH'
     };
 
-    const providerCountry = countryCodeMap[payment.recipientBankCountry] || payment.recipientBankCountry;
+    const rawProviderCountry = (payment.recipientBankCountry || '').trim();
+    const normalizedProviderCountryKey = rawProviderCountry.toLowerCase();
+    const providerCountry =
+      countryCodeMap[normalizedProviderCountryKey] ||
+      (rawProviderCountry.length === 2 ? rawProviderCountry.toUpperCase() : rawProviderCountry);
     const receivingCurrency = payment.foreignCurrency;
-    const isHongKong = providerCountry === 'HK' || providerCountry.toUpperCase() === 'HONG KONG';
+    const isHongKong = providerCountry === 'HK';
     const network = isHongKong && ['HKD', 'GBP'].includes(receivingCurrency) ? 'FPS' : 'SWIFT';
 
     if (isHongKong && !['HKD', 'GBP'].includes(receivingCurrency)) {
@@ -866,6 +873,19 @@ const generateInvoiceUrl = async (s3Key, bucketName) => {
   return await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
 };
 
+const sanitizePaymentForUser = (payment) => {
+  const safePayment = payment.toObject ? payment.toObject() : { ...payment };
+  delete safePayment.reapPaymentId;
+  delete safePayment.reapRawResponse;
+  delete safePayment.reapStatus;
+  delete safePayment.reapErrorMessage;
+  delete safePayment.reapDocumentUploadResponse;
+  delete safePayment.reapActionResponse;
+  delete safePayment.reapError;
+  delete safePayment.reapQuoteStatus;
+  return safePayment;
+};
+
 const upsertBeneficiaryFromPayment = async (payment) => {
   await Beneficiary.findOneAndUpdate(
     {
@@ -916,7 +936,7 @@ const getUserPayments = async (req, res) => {
         const invoiceUrl = await generateInvoiceUrl(payment.invoiceS3Key, payment.invoiceS3Bucket);
 
         return {
-          ...payment.toObject(),
+          ...sanitizePaymentForUser(payment),
           invoiceUrl
         };
       })
@@ -1171,10 +1191,12 @@ const getPaymentById = async (req, res) => {
     // Generate pre-signed URL for invoice
     const invoiceUrl = await generateInvoiceUrl(payment.invoiceS3Key, payment.invoiceS3Bucket);
 
+    const paymentData = req.user.isAdmin ? payment.toObject() : sanitizePaymentForUser(payment);
+
     res.status(200).json({
       success: true,
       data: {
-        ...payment.toObject(),
+        ...paymentData,
         invoiceUrl
       }
     });
@@ -1569,28 +1591,33 @@ const getPaymentReceipt = async (req, res) => {
       });
     }
 
+    const receiptData = {
+      receiptId: payment._id,
+      date: payment.completedAt || payment.updatedAt,
+      status: payment.status,
+      recipientCompany: payment.recipientCompany,
+      accountNumber: payment.accountNumber,
+      bankName: payment.recipientBank,
+      foreignAmount: payment.foreignAmount,
+      foreignCurrency: payment.foreignCurrency,
+      localAmount: payment.localAmount,
+      localCurrency: 'NGN',
+      exchangeRate: payment.exchangeRate,
+      user: {
+        name: payment.userId.name,
+        email: payment.userId.email
+      }
+    };
+
+    if (isAdmin) {
+      receiptData.reapPaymentId = payment.reapPaymentId;
+      receiptData.reapStatus = payment.reapStatus;
+      receiptData.reapErrorMessage = payment.reapErrorMessage || null;
+    }
+
     res.status(200).json({
       success: true,
-      data: {
-        receiptId: payment._id,
-        reapPaymentId: payment.reapPaymentId,
-        date: payment.completedAt || payment.updatedAt,
-        status: payment.status,
-        reapStatus: payment.reapStatus,
-        recipientCompany: payment.recipientCompany,
-        accountNumber: payment.accountNumber,
-        bankName: payment.recipientBank,
-        foreignAmount: payment.foreignAmount,
-        foreignCurrency: payment.foreignCurrency,
-        localAmount: payment.localAmount,
-        localCurrency: 'NGN',
-        exchangeRate: payment.exchangeRate,
-        user: {
-          name: payment.userId.name,
-          email: payment.userId.email
-        },
-        reapErrorMessage: payment.reapErrorMessage || null
-      }
+      data: receiptData
     });
 
   } catch (error) {
@@ -1634,8 +1661,9 @@ const downloadPaymentReceipt = async (req, res) => {
 
     // Generate receipt text
     const dateStr = new Date(payment.completedAt || payment.updatedAt).toLocaleString();
-    const reapIdStr = payment.reapPaymentId ? `\nReap Payment ID:    ${payment.reapPaymentId}` : '';
-    const errorStr = payment.reapErrorMessage ? `\nReap Error:         ${payment.reapErrorMessage}` : '';
+    const reapIdStr = isAdmin && payment.reapPaymentId ? `\nReap Payment ID:    ${payment.reapPaymentId}` : '';
+    const reapStatusStr = isAdmin && payment.reapStatus ? `\nReap Status:        ${payment.reapStatus.toUpperCase()}` : '';
+    const errorStr = isAdmin && payment.reapErrorMessage ? `\nReap Error:         ${payment.reapErrorMessage}` : '';
     
     const receiptText = `
 ======================================================
@@ -1644,8 +1672,7 @@ const downloadPaymentReceipt = async (req, res) => {
 
 Transaction ID:     ${payment._id}${reapIdStr}
 Date:               ${dateStr}
-Status:             ${payment.status.toUpperCase()}
-Reap Status:        ${payment.reapStatus.toUpperCase()}${errorStr}
+Status:             ${payment.status.toUpperCase()}${reapStatusStr}${errorStr}
 
 ------------------------------------------------------
 SENDER INFORMATION
@@ -1675,7 +1702,7 @@ Exchange Rate:      ${payment.exchangeRate}
 `.trim();
 
     // Set headers for file download
-    const fileName = `payment-receipt-${payment.reapPaymentId || payment._id}.txt`;
+    const fileName = `payment-receipt-${isAdmin && payment.reapPaymentId ? payment.reapPaymentId : payment._id}.txt`;
     res.setHeader('Content-disposition', `attachment; filename=${fileName}`);
     res.setHeader('Content-type', 'text/plain');
     
