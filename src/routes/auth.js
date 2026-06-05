@@ -8,6 +8,7 @@ import {
   adminLogin,
   verifyEmail,
   verifyTwoFactor,
+  resendTwoFactorCode,
   resendVerificationCode,
   requestPasswordReset,
   resetPassword,
