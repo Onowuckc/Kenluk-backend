@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import User from '../models/User.js';
 import { generateAuthTokens } from '../utils/generateToken.js';
-import { sendEmail } from '../config/mailer.js';
+import { sendEmail } from '../config/mailer_smtp.js';
 import { generateVerificationEmail, generatePasswordResetEmail, generateWelcomeEmail } from '../utils/emailTemplates.js';
 import { isCompanyPaymentAccount } from '../utils/companyPaymentAccount.js';
 

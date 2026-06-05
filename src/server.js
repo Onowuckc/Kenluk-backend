@@ -36,6 +36,9 @@ import requestContext from './middleware/requestContext.js';
 
 // Import database connection
 import connectDB from './config/database.js';
+// Import SMTP verification
+import { verifyConnection } from './config/mailer_smtp.js';
+
 
 // Initialize Express app
 const app = express();
@@ -145,10 +148,17 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
   logRoutes();
+  
+  // Verify SMTP connection for email service
+  try {
+    await verifyConnection();
+  } catch (error) {
+    console.error('⚠️ SMTP verification failed - emails may not be sent:', error.message);
+  }
 });
 
 export default app;
