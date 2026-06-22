@@ -3,6 +3,15 @@ import Payment from '../models/Payment.js';
 import User from '../models/User.js';
 import PlatformSettings from '../models/PlatformSettings.js';
 import FidelityPayment from '../models/FidelityPayment.js';
+import { sendEmail } from '../config/mailer.js';
+import {
+  generatePaymentSuccessEmail,
+  generatePaymentFailedEmail
+} from '../utils/emailTemplates.js';
+import {
+  pushPaymentSuccess,
+  pushPaymentFailed
+} from '../services/pushNotificationService.js';
 
 // ─── Reap Payments — Production public key (RSA-SHA512 verification) ──────────
 // This is NOT a secret — it is Reap's published public key used to verify
@@ -356,6 +365,43 @@ const handleReapWebhook = async (req, res) => {
     }
 
     await payment.save();
+
+    // ── Send email and push notification based on the new Reap status ──────────────
+    if (newStatus === 'completed' || newStatus === 'failed') {
+      try {
+        const paymentUser = await User.findById(payment.userId).select('name email');
+        if (paymentUser?.email) {
+          if (newStatus === 'completed') {
+            await sendEmail(
+              paymentUser.email,
+              '✅ Payment Successful – Official Receipt – Reap by Kenluk',
+              generatePaymentSuccessEmail(paymentUser.name, payment)
+            );
+            console.log(`${PREFIX} [EMAIL] Payment success/receipt email sent to ${paymentUser.email}`);
+            
+            // Trigger success push notification
+            pushPaymentSuccess(payment.userId, payment).catch((e) =>
+              console.error(`${PREFIX} [PUSH] Success push error:`, e.message)
+            );
+          } else {
+            await sendEmail(
+              paymentUser.email,
+              '✖ Payment Failed – Reap by Kenluk',
+              generatePaymentFailedEmail(paymentUser.name, payment)
+            );
+            console.log(`${PREFIX} [EMAIL] Payment failure email sent to ${paymentUser.email}`);
+            
+            // Trigger failure push notification
+            pushPaymentFailed(payment.userId, payment, payment.reapErrorMessage).catch((e) =>
+              console.error(`${PREFIX} [PUSH] Failure push error:`, e.message)
+            );
+          }
+        }
+      } catch (emailError) {
+        // Email/Push errors must not affect webhook response to Reap
+        console.error(`${PREFIX} [NOTIFICATION] Failed to send status notification:`, emailError.message);
+      }
+    }
 
     console.log(
       `${PREFIX} Payment ${payment._id} (reapId: ${reapPaymentId}) → status: ${payment.status}, reapStatus: ${payment.reapStatus}`

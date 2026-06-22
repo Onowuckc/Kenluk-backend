@@ -422,6 +422,49 @@ const updateTwoFactorSetting = async (req, res) => {
   });
 };
 
+/**
+ * Register or update the user's Expo push notification token.
+ * Called by the mobile app after login to enable push notifications.
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const registerPushToken = async (req, res) => {
+  try {
+    const { pushToken } = req.body;
+    const userId = getAuthenticatedUserId(req);
+
+    if (!pushToken || typeof pushToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid pushToken string is required.'
+      });
+    }
+
+    // Basic format validation for Expo push tokens
+    if (!pushToken.startsWith('ExponentPushToken[') && !pushToken.startsWith('ExpoPushToken[')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid Expo push token format.'
+      });
+    }
+
+    await User.findByIdAndUpdate(userId, { expoPushToken: pushToken });
+
+    console.log(`[PUSH] Push token registered for user ${userId}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Push notification token registered successfully.'
+    });
+  } catch (error) {
+    console.error('Register push token error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while registering push token.'
+    });
+  }
+};
+
 export {
   getProfile,
   updateProfile,
@@ -430,5 +473,6 @@ export {
   startTwoFactorSetup,
   confirmTwoFactorSetup,
   disableTwoFactor,
-  updateTwoFactorSetting
+  updateTwoFactorSetting,
+  registerPushToken
 };

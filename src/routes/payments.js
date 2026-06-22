@@ -14,7 +14,8 @@ import {
   completePayment,
   getPaymentReceipt,
   downloadPaymentReceipt,
-  reapPaymentAction
+  reapPaymentAction,
+  resendPaymentReceiptEmail
 } from '../controllers/paymentUploadController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { requireAccountApproval } from '../middleware/accountApproval.js';
@@ -50,5 +51,6 @@ router.put('/:paymentId/retry-reap', requireAdmin, retryReapSubmission);
 router.put('/:paymentId/complete', requireAdmin, completePayment);
 router.get('/:paymentId/receipt', getPaymentReceipt);
 router.get('/:paymentId/receipt/download', downloadPaymentReceipt);
+router.post('/:paymentId/resend-receipt', requireAdmin, resendPaymentReceiptEmail);
 
 export default router;

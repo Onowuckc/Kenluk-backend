@@ -63,6 +63,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
+  },
+  // Expo push token for mobile push notifications
+  expoPushToken: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true

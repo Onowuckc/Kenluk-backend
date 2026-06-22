@@ -3,9 +3,21 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import Payment from '../models/Payment.js';
 import Beneficiary from '../models/Beneficiary.js';
 import PlatformSettings from '../models/PlatformSettings.js';
+import User from '../models/User.js';
 import s3Client from '../config/s3Client.js';
 import { v4 as uuidv4 } from 'uuid';
 import fetch, { Blob, FormData } from 'node-fetch';
+import { sendEmail } from '../config/mailer.js';
+import {
+  generatePaymentInitiatedEmail,
+  generatePaymentSuccessEmail,
+  generatePaymentFailedEmail
+} from '../utils/emailTemplates.js';
+import {
+  pushPaymentInitiated,
+  pushPaymentSuccess,
+  pushPaymentFailed
+} from '../services/pushNotificationService.js';
 
 const readEnvValue = (name) => {
   const value = process.env[name];
@@ -398,6 +410,26 @@ const submitPaymentRequest = async (req, res) => {
 
     await payment.save();
 
+    // ── Send payment initiation email ──────────────────────────────────────────
+    try {
+      const user = await User.findById(userId).select('name email');
+      if (user?.email) {
+        await sendEmail(
+          user.email,
+          '⏳ Payment Request Initiated – Reap by Kenluk',
+          generatePaymentInitiatedEmail(user.name, payment)
+        );
+        console.log(`[EMAIL] Payment initiation email sent to ${user.email}`);
+      }
+    } catch (emailError) {
+      // Email errors should not fail the payment submission
+      console.error('[EMAIL] Failed to send payment initiation email:', emailError.message);
+    }
+
+    // ── Send payment initiation push notification ───────────────────────────────
+    pushPaymentInitiated(userId, payment).catch((e) =>
+      console.error('[PUSH] Initiation push error:', e.message)
+    );
     res.status(201).json({
       success: true,
       message: 'Payment request submitted successfully',
@@ -1079,6 +1111,27 @@ const reviewPayment = async (req, res) => {
       console.error('Beneficiary upsert warning:', beneficiaryError.message);
     }
 
+    // ── Send rejection email immediately if rejecting ──────────────────────────
+    if (action === 'reject') {
+      try {
+        const paymentUser = await User.findById(payment.userId).select('name email');
+        if (paymentUser?.email) {
+          await sendEmail(
+            paymentUser.email,
+            '✖ Payment Request Rejected – Reap by Kenluk',
+            generatePaymentFailedEmail(paymentUser.name, payment)
+          );
+          console.log(`[EMAIL] Payment rejection email sent to ${paymentUser.email}`);
+        }
+      } catch (emailError) {
+        console.error('[EMAIL] Failed to send rejection email:', emailError.message);
+      }
+      // Push notification for rejection
+      pushPaymentFailed(payment.userId, payment).catch((e) =>
+        console.error('[PUSH] Rejection push error:', e.message)
+      );
+    }
+
     let reapStatus = payment.reapStatus;
     let reapError = payment.reapErrorMessage || null;
     if (action === 'approve') {
@@ -1092,6 +1145,24 @@ const reviewPayment = async (req, res) => {
         reapError = payment.reapErrorMessage || error.message;
         payment.status = 'failed';
         await payment.save();
+        // ── Send failure email if Reap API submission fails ──────────────────
+        try {
+          const paymentUser = await User.findById(payment.userId).select('name email');
+          if (paymentUser?.email) {
+            await sendEmail(
+              paymentUser.email,
+              '✖ Payment Processing Failed – Reap by Kenluk',
+              generatePaymentFailedEmail(paymentUser.name, payment, error.message)
+            );
+            console.log(`[EMAIL] Payment failure email sent to ${paymentUser.email}`);
+          }
+        } catch (emailError) {
+          console.error('[EMAIL] Failed to send failure email:', emailError.message);
+        }
+        // Push notification for Reap failure
+        pushPaymentFailed(payment.userId, payment, error.message).catch((e) =>
+          console.error('[PUSH] Failure push error:', e.message)
+        );
       }
     }
 
@@ -1255,6 +1326,23 @@ const actionPayment = async (req, res) => {
 
     await payment.save();
 
+    // ── Send rejection email immediately if rejecting ──────────────────────────
+    if (action === 'reject') {
+      try {
+        const paymentUser = await User.findById(payment.userId).select('name email');
+        if (paymentUser?.email) {
+          await sendEmail(
+            paymentUser.email,
+            '✖ Payment Request Rejected – Reap by Kenluk',
+            generatePaymentFailedEmail(paymentUser.name, payment)
+          );
+          console.log(`[EMAIL] Payment rejection email sent to ${paymentUser.email}`);
+        }
+      } catch (emailError) {
+        console.error('[EMAIL] Failed to send rejection email:', emailError.message);
+      }
+    }
+
     // If approved, send to Reap Payment API
     let reapStatus = null;
     let reapError = null;
@@ -1269,6 +1357,20 @@ const actionPayment = async (req, res) => {
         reapError = payment.reapErrorMessage || error.message;
         payment.status = 'failed';
         await payment.save();
+        // ── Send failure email if Reap API submission fails ──────────────────
+        try {
+          const paymentUser = await User.findById(payment.userId).select('name email');
+          if (paymentUser?.email) {
+            await sendEmail(
+              paymentUser.email,
+              '✖ Payment Processing Failed – Reap by Kenluk',
+              generatePaymentFailedEmail(paymentUser.name, payment, error.message)
+            );
+            console.log(`[EMAIL] Payment failure email sent to ${paymentUser.email}`);
+          }
+        } catch (emailError) {
+          console.error('[EMAIL] Failed to send failure email:', emailError.message);
+        }
       }
     }
 
@@ -1549,6 +1651,26 @@ const completePayment = async (req, res) => {
 
     await payment.save();
 
+    // ── Send success/receipt email ─────────────────────────────────────────────
+    try {
+      const paymentUser = await User.findById(payment.userId).select('name email');
+      if (paymentUser?.email) {
+        await sendEmail(
+          paymentUser.email,
+          '✅ Payment Successful – Official Receipt – Reap by Kenluk',
+          generatePaymentSuccessEmail(paymentUser.name, payment)
+        );
+        console.log(`[EMAIL] Payment success/receipt email sent to ${paymentUser.email}`);
+      }
+    } catch (emailError) {
+      console.error('[EMAIL] Failed to send success email:', emailError.message);
+    }
+
+    // ── Push notification for completion ──────────────────────────────────────
+    pushPaymentSuccess(payment.userId, payment).catch((e) =>
+      console.error('[PUSH] Success push error:', e.message)
+    );
+
     res.status(200).json({
       success: true,
       message: 'Payment marked as completed successfully',
@@ -1724,6 +1846,57 @@ Exchange Rate:      ${payment.exchangeRate}
   }
 };
 
+/**
+ * Resend the payment receipt email for a completed payment (admin-only).
+ * POST /api/payments/:paymentId/resend-receipt
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const resendPaymentReceiptEmail = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+
+    const payment = await Payment.findById(paymentId);
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment not found.' });
+    }
+
+    if (payment.status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Receipt can only be resent for completed payments.'
+      });
+    }
+
+    const paymentUser = await User.findById(payment.userId).select('name email');
+    if (!paymentUser?.email) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment owner email address not found.'
+      });
+    }
+
+    await sendEmail(
+      paymentUser.email,
+      '✅ Payment Receipt (Resent) – Reap by Kenluk',
+      generatePaymentSuccessEmail(paymentUser.name, payment)
+    );
+
+    console.log(`[EMAIL] Receipt re-sent for payment ${paymentId} to ${paymentUser.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: `Receipt email successfully resent to ${paymentUser.email}.`
+    });
+  } catch (error) {
+    console.error('Resend receipt email error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while resending receipt email.'
+    });
+  }
+};
+
 export {
   generateInvoiceUploadUrl,
   submitPaymentRequest,
@@ -1741,5 +1914,6 @@ export {
   sendToReapPaymentAPI,
   reapPaymentAction,
   getPaymentReceipt,
-  downloadPaymentReceipt
+  downloadPaymentReceipt,
+  resendPaymentReceiptEmail
 };

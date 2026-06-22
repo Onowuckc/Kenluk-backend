@@ -11,7 +11,8 @@ import {
   startTwoFactorSetup,
   confirmTwoFactorSetup,
   disableTwoFactor,
-  updateTwoFactorSetting
+  updateTwoFactorSetting,
+  registerPushToken
 } from '../controllers/userController.js';
 
 // Import middleware
@@ -31,6 +32,13 @@ router.get('/profile', authenticate, getProfile);
  * @access  Private
  */
 router.put('/profile', authenticate, updateProfile);
+
+/**
+ * @route   PUT /api/user/push-token
+ * @desc    Register or update the user's Expo push notification token
+ * @access  Private
+ */
+router.put('/push-token', authenticate, registerPushToken);
 
 /**
  * @route   POST /api/users/2fa/setup
