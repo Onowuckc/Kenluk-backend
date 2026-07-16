@@ -18,6 +18,7 @@ import {
   pushPaymentSuccess,
   pushPaymentFailed
 } from '../services/pushNotificationService.js';
+import { calculatePaymentFeeBreakdown } from '../utils/paymentFeeUtils.js';
 
 const readEnvValue = (name) => {
   const value = process.env[name];
@@ -339,6 +340,7 @@ const submitPaymentRequest = async (req, res) => {
     }
 
     const normalizedInvoiceDetails = normalizeInvoiceDetails(invoiceDetails);
+    const feeBreakdown = calculatePaymentFeeBreakdown(foreignAmount, foreignCurrency);
 
     // Build Reap payload for snapshot
     const reapPayload = {
@@ -404,6 +406,9 @@ const submitPaymentRequest = async (req, res) => {
       foreignCurrency,
       localAmount,
       exchangeRate,
+      processingFee: feeBreakdown.processingFee,
+      amountToBeneficiary: feeBreakdown.amountToBeneficiary,
+      totalChargedAmount: feeBreakdown.totalChargedAmount,
       status: 'pending_admin_approval',
       reapPayloadSnapshot: reapPayload
     });
@@ -551,7 +556,7 @@ const sendToReapPaymentAPI = async (payment, options = {}) => {
         ]
       },
       payment: {
-        receivingAmount: payment.foreignAmount,
+        receivingAmount: payment.amountToBeneficiary || payment.foreignAmount,
         receivingCurrency: receivingCurrency,
         senderCurrency: 'USDC', // Use USDC as sender currency (stablecoin)
         description: `Payment to ${payment.recipientCompany}`,

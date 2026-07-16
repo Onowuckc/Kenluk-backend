@@ -104,6 +104,21 @@ const paymentSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
+  processingFee: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  amountToBeneficiary: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  totalChargedAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   // Status and approval
   status: {
     type: String,
