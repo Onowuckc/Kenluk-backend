@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Email templates for the Kenluk application
  */
 
@@ -435,12 +435,6 @@ const generatePaymentInitiatedEmail = (name, payment) => {
       <div class="amount">${cur} ${fmt(chargedAmount)}</div>
       <div class="sub">Equivalent to NGN ${localAmountFormatted} at rate ${Number(payment.exchangeRate).toLocaleString()}</div>
     </div>
-    ${hasFee ? `<div class="fee-box">
-      <div class="fee-title">Processing Fee Breakdown</div>
-      <div class="fee-row"><span class="fee-label">Amount Initiated</span><span class="fee-value">${cur} ${fmt(chargedAmount)}</span></div>
-      <div class="fee-row fee-deduction"><span class="fee-label">Processing Fee</span><span class="fee-value">- ${cur} ${fmt(feeAmount)}</span></div>
-      <div class="fee-row fee-total"><span class="fee-label">Beneficiary Receives</span><span class="fee-value">${cur} ${fmt(beneficiaryAmount)}</span></div>
-    </div>` : ''}
     <div class="section-label">Sender and Beneficiary Details</div>
     <table class="info-table">
       <tr><td>Sender Name</td><td>${name}</td></tr>
@@ -449,8 +443,6 @@ const generatePaymentInitiatedEmail = (name, payment) => {
       <tr><td>Beneficiary Bank</td><td>${payment.recipientBank}</td></tr>
       <tr><td>Country</td><td>${payment.recipientBankCountry}</td></tr>
       <tr><td>Amount Initiated</td><td>${cur} ${fmt(chargedAmount)}</td></tr>
-      ${hasFee ? `<tr><td>Processing Fee</td><td style="color:#dc2626;">- ${cur} ${fmt(feeAmount)}</td></tr>` : ''}
-      <tr><td>Amount To Beneficiary</td><td style="color:#065f46; font-weight:700;">${cur} ${fmt(beneficiaryAmount)}</td></tr>
     </table>
     <div class="section-label">Submission Details</div>
     <table class="info-table">
@@ -472,9 +464,6 @@ const generatePaymentSuccessEmail = (name, payment) => {
   const submittedAt = new Date(payment.submittedAt || payment.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
   const localAmountFormatted = Number(payment.localAmount).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const chargedAmount = Number(payment.totalChargedAmount || payment.foreignAmount || 0);
-  const feeAmount = Number(payment.processingFee || 0);
-  const beneficiaryAmount = Number(payment.amountToBeneficiary || payment.foreignAmount || 0);
-  const hasFee = feeAmount > 0;
   const fmt = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const cur = payment.foreignCurrency;
 
@@ -489,15 +478,6 @@ const generatePaymentSuccessEmail = (name, payment) => {
     .status-badge { background: rgba(255,255,255,0.20); color: #fff; border: 1px solid rgba(255,255,255,0.35); }
     .amount-box { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border: 1px solid #6ee7b7; color: #064e3b; }
     .receipt-strip { background: linear-gradient(90deg, #064e3b 0%, #047857 100%); color: #fff; text-align: center; padding: 12px; font-size: 11px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; }
-    .fee-box { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac; border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; }
-    .fee-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #15803d; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #86efac; }
-    .fee-row { display: table; width: 100%; padding: 6px 0; font-size: 13px; }
-    .fee-label { display: table-cell; color: #555; }
-    .fee-value { display: table-cell; font-weight: 700; color: #1a1a2e; text-align: right; }
-    .fee-deduction .fee-value { color: #dc2626; }
-    .fee-total { border-top: 2px solid #86efac; margin-top: 8px; padding-top: 10px !important; }
-    .fee-total .fee-label { font-weight: 700; color: #15803d; font-size: 14px; }
-    .fee-total .fee-value { color: #15803d; font-size: 15px; }
   </style>
 </head>
 <body>
@@ -514,16 +494,10 @@ const generatePaymentSuccessEmail = (name, payment) => {
     <p class="intro-text">Great news! Your payment has been successfully processed and sent to the recipient. This email serves as your <strong>official payment receipt</strong>. Please save it for your records.</p>
     <div class="receipt-id-box"><span class="receipt-id-label">Receipt / Transaction ID</span><span class="receipt-id-value">${payment._id}</span></div>
     <div class="amount-box">
-      <div class="label">Amount Sent to Beneficiary</div>
-      <div class="amount">${cur} ${fmt(beneficiaryAmount)}</div>
+      <div class="label">Amount Initiated</div>
+      <div class="amount">${cur} ${fmt(chargedAmount)}</div>
       <div class="sub">Debited: NGN ${localAmountFormatted} | Exchange Rate: NGN ${Number(payment.exchangeRate).toLocaleString()} per ${cur}</div>
     </div>
-    ${hasFee ? `<div class="fee-box">
-      <div class="fee-title">Payment Fee Breakdown</div>
-      <div class="fee-row"><span class="fee-label">Amount Initiated</span><span class="fee-value">${cur} ${fmt(chargedAmount)}</span></div>
-      <div class="fee-row fee-deduction"><span class="fee-label">Processing Fee</span><span class="fee-value">- ${cur} ${fmt(feeAmount)}</span></div>
-      <div class="fee-row fee-total"><span class="fee-label">Beneficiary Received</span><span class="fee-value">${cur} ${fmt(beneficiaryAmount)}</span></div>
-    </div>` : ''}
     <div class="section-label">Recipient Information</div>
     <table class="info-table">
       <tr><td>Sender Name</td><td>${name}</td></tr>
@@ -536,8 +510,6 @@ const generatePaymentSuccessEmail = (name, payment) => {
     <div class="section-label">Transaction Details</div>
     <table class="info-table">
       <tr><td>Amount Initiated</td><td>${cur} ${fmt(chargedAmount)}</td></tr>
-      ${hasFee ? `<tr><td>Processing Fee</td><td style="color:#dc2626;">- ${cur} ${fmt(feeAmount)}</td></tr>` : ''}
-      <tr><td>Amount To Beneficiary</td><td style="color:#065f46; font-weight:700;">${cur} ${fmt(beneficiaryAmount)}</td></tr>
       <tr><td>Naira Equivalent</td><td>NGN ${localAmountFormatted}</td></tr>
       <tr><td>Exchange Rate</td><td>NGN ${Number(payment.exchangeRate).toLocaleString()} / ${cur}</td></tr>
       <tr><td>Submitted At</td><td>${submittedAt}</td></tr>

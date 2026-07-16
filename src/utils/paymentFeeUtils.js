@@ -22,8 +22,8 @@ const calculatePaymentFeeBreakdown = (amount, currency = 'USD') => {
     amountToBeneficiary,
     totalChargedAmount: numericAmount,
     feeDescription: processingFee > 0
-      ? `A ${currency} ${processingFee.toFixed(2)} processing fee is deducted from the payment.`
-      : 'No processing fee applied.'
+      ? `A ${currency} ${processingFee.toFixed(2)} SWIFT fee is deducted from the payment.`
+      : 'No SWIFT fee applied.'
   };
 };
 
