@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Email templates for the Kenluk application
  */
 
@@ -190,7 +190,7 @@ export {
   generateWelcomeEmail
 };
 
-// ─── Reap Payment Notification Templates ─────────────────────────────────────
+// â”€â”€â”€ Reap Payment Notification Templates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Shared base styles used across all payment email templates
@@ -372,6 +372,8 @@ const sharedStyles = `
   }
 `;
 
+
+
 /**
  * Generate payment initiated email
  * Sent immediately when a user submits a new payment request.
@@ -387,13 +389,10 @@ const generatePaymentInitiatedEmail = (name, payment) => {
   const localAmountFormatted = Number(payment.localAmount).toLocaleString('en-NG', {
     minimumFractionDigits: 2, maximumFractionDigits: 2
   });
-
-  // Fee breakdown variables – read from saved payment fields
   const chargedAmount = Number(payment.totalChargedAmount || payment.foreignAmount || 0);
   const feeAmount = Number(payment.processingFee || 0);
   const beneficiaryAmount = Number(payment.amountToBeneficiary || payment.foreignAmount || 0);
   const hasFee = feeAmount > 0;
-
   const fmt = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const cur = payment.foreignCurrency;
 
@@ -402,158 +401,80 @@ const generatePaymentInitiatedEmail = (name, payment) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment Request Initiated – Reap by Kenluk</title>
+  <title>Payment Request Initiated - Kenluk</title>
   <style>${sharedStyles}
     .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); color: #fff; }
     .status-badge { background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
     .amount-box { background: linear-gradient(135deg, #e8f4fd 0%, #dbeafe 100%); border: 1px solid #bfdbfe; color: #1e40af; }
     .notice-box { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
-    .fee-box {
-      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-      border: 1px solid #7dd3fc;
-      border-radius: 12px;
-      padding: 20px 24px;
-      margin-bottom: 28px;
-    }
-    .fee-title {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: #0369a1;
-      margin-bottom: 14px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #bae6fd;
-    }
-    .fee-row {
-      display: table;
-      width: 100%;
-      padding: 6px 0;
-      font-size: 13px;
-    }
+    .fee-box { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1px solid #7dd3fc; border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; }
+    .fee-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #0369a1; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #bae6fd; }
+    .fee-row { display: table; width: 100%; padding: 6px 0; font-size: 13px; }
     .fee-label { display: table-cell; color: #555; }
     .fee-value { display: table-cell; font-weight: 700; color: #1a1a2e; text-align: right; }
     .fee-deduction .fee-value { color: #dc2626; }
-    .fee-total {
-      border-top: 2px solid #7dd3fc;
-      margin-top: 8px;
-      padding-top: 10px !important;
-    }
+    .fee-total { border-top: 2px solid #7dd3fc; margin-top: 8px; padding-top: 10px !important; }
     .fee-total .fee-label { font-weight: 700; color: #0369a1; font-size: 14px; }
     .fee-total .fee-value { color: #0369a1; font-size: 15px; }
   </style>
 </head>
 <body>
-<div class="wrapper">
-  <div class="container">
-    <div class="header">
-      <div class="brand">⚡ Reap by Kenluk</div>
-      <h1>Payment Request Initiated</h1>
-      <p>We've received your payment request and it's under review</p>
-      <div class="status-badge">⏳ Pending Admin Approval</div>
-    </div>
-
-    <div class="body">
-      <p class="greeting">Hello, ${name}!</p>
-      <p class="intro-text">
-        Your international payment request has been successfully submitted to the Kenluk platform.
-        Our team will review and process your request shortly. You'll receive another email once your
-        payment has been processed.
-      </p>
-
-      <!-- Receipt ID -->
-      <div class="receipt-id-box">
-        <span class="receipt-id-label">Transaction Ref</span>
-        <span class="receipt-id-value">${payment._id}</span>
-      </div>
-
-      <!-- Amount -->
-      <div class="amount-box">
-        <div class="label">Amount Initiated</div>
-        <div class="amount">${cur} ${fmt(chargedAmount)}</div>
-        <div class="sub">Equivalent to ₦${localAmountFormatted} at rate ${Number(payment.exchangeRate).toLocaleString()}</div>
-      </div>
-
-      ${hasFee ? `
-      <!-- Fee Breakdown -->
-      <div class="fee-box">
-        <div class="fee-title">💳 Processing Fee Breakdown</div>
-        <div class="fee-row">
-          <span class="fee-label">Amount Initiated</span>
-          <span class="fee-value">${cur} ${fmt(chargedAmount)}</span>
-        </div>
-        <div class="fee-row fee-deduction">
-          <span class="fee-label">Processing Fee</span>
-          <span class="fee-value">− ${cur} ${fmt(feeAmount)}</span>
-        </div>
-        <div class="fee-row fee-total">
-          <span class="fee-label">Beneficiary Receives</span>
-          <span class="fee-value">${cur} ${fmt(beneficiaryAmount)}</span>
-        </div>
-      </div>
-      ` : ''}
-
-      <div class="section-label">Sender &amp; Beneficiary Details</div>
-      <table class="info-table">
-        <tr><td>Sender Name</td><td>${name}</td></tr>
-        <tr><td>Beneficiary Name</td><td>${payment.recipientCompany}</td></tr>
-        <tr><td>Beneficiary Account No</td><td>${payment.accountNumber}</td></tr>
-        <tr><td>Beneficiary Bank</td><td>${payment.recipientBank}</td></tr>
-        <tr><td>Country</td><td>${payment.recipientBankCountry}</td></tr>
-        <tr><td>Amount Initiated</td><td>${cur} ${fmt(chargedAmount)}</td></tr>
-        ${hasFee ? `<tr><td>Processing Fee</td><td style="color:#dc2626;">− ${cur} ${fmt(feeAmount)}</td></tr>` : ''}
-        <tr><td>Amount To Beneficiary</td><td style="color:#065f46; font-weight:700;">${cur} ${fmt(beneficiaryAmount)}</td></tr>
-      </table>
-
-      <!-- Transaction Meta -->
-      <div class="section-label">Submission Details</div>
-      <table class="info-table">
-        <tr><td>Submitted At</td><td>${submittedAt}</td></tr>
-        <tr><td>Invoice File</td><td>${payment.invoiceOriginalFileName || payment.invoiceFileName || 'N/A'}</td></tr>
-        <tr><td>Status</td><td>Pending Admin Approval</td></tr>
-      </table>
-
-      <div class="notice-box">
-        ⚠️ <strong>Important:</strong> Please do not submit a duplicate payment request. Our admin team typically reviews requests within 1–2 business days. If you have any concerns, please contact us at <a href="mailto:Info@kenluk.com" style="color: #92400e;">Info@kenluk.com</a>.
-      </div>
-    </div>
-
-    <div class="footer">
-      <p>© ${new Date().getFullYear()} Kenluk &nbsp;|&nbsp; <a href="mailto:Info@kenluk.com">Info@kenluk.com</a> &nbsp;|&nbsp; +234 708 832 9998</p>
-      <p style="margin-top: 6px;">Powered by Reap Payments &nbsp;·&nbsp; This is an automated notification. Please do not reply.</p>
-    </div>
+<div class="wrapper"><div class="container">
+  <div class="header">
+    <div class="brand">Kenluk</div>
+    <h1>Payment Request Initiated</h1>
+    <p>We have received your payment request and it is under review</p>
+    <div class="status-badge">Pending Admin Approval</div>
   </div>
-</div>
-</body>
-</html>`;
+  <div class="body">
+    <p class="greeting">Hello, ${name}!</p>
+    <p class="intro-text">Your international payment request has been successfully submitted. Our team will review and process your request shortly.</p>
+    <div class="receipt-id-box"><span class="receipt-id-label">Transaction Ref</span><span class="receipt-id-value">${payment._id}</span></div>
+    <div class="amount-box">
+      <div class="label">Amount Initiated</div>
+      <div class="amount">${cur} ${fmt(chargedAmount)}</div>
+      <div class="sub">Equivalent to NGN ${localAmountFormatted} at rate ${Number(payment.exchangeRate).toLocaleString()}</div>
+    </div>
+    ${hasFee ? `<div class="fee-box">
+      <div class="fee-title">Processing Fee Breakdown</div>
+      <div class="fee-row"><span class="fee-label">Amount Initiated</span><span class="fee-value">${cur} ${fmt(chargedAmount)}</span></div>
+      <div class="fee-row fee-deduction"><span class="fee-label">Processing Fee</span><span class="fee-value">- ${cur} ${fmt(feeAmount)}</span></div>
+      <div class="fee-row fee-total"><span class="fee-label">Beneficiary Receives</span><span class="fee-value">${cur} ${fmt(beneficiaryAmount)}</span></div>
+    </div>` : ''}
+    <div class="section-label">Sender and Beneficiary Details</div>
+    <table class="info-table">
+      <tr><td>Sender Name</td><td>${name}</td></tr>
+      <tr><td>Beneficiary Name</td><td>${payment.recipientCompany}</td></tr>
+      <tr><td>Beneficiary Account No</td><td>${payment.accountNumber}</td></tr>
+      <tr><td>Beneficiary Bank</td><td>${payment.recipientBank}</td></tr>
+      <tr><td>Country</td><td>${payment.recipientBankCountry}</td></tr>
+      <tr><td>Amount Initiated</td><td>${cur} ${fmt(chargedAmount)}</td></tr>
+      ${hasFee ? `<tr><td>Processing Fee</td><td style="color:#dc2626;">- ${cur} ${fmt(feeAmount)}</td></tr>` : ''}
+      <tr><td>Amount To Beneficiary</td><td style="color:#065f46; font-weight:700;">${cur} ${fmt(beneficiaryAmount)}</td></tr>
+    </table>
+    <div class="section-label">Submission Details</div>
+    <table class="info-table">
+      <tr><td>Submitted At</td><td>${submittedAt}</td></tr>
+      <tr><td>Status</td><td>Pending Admin Approval</td></tr>
+    </table>
+    <div class="notice-box">Important: Please do not submit a duplicate payment request. Our admin team typically reviews requests within 1-2 business days. Contact us at Info@kenluk.com if you have questions.</div>
+  </div>
+  <div class="footer">
+    <p>Copyright ${new Date().getFullYear()} Kenluk | Info@kenluk.com | +234 708 832 9998</p>
+    <p style="margin-top: 6px;">This is an automated notification. Please do not reply.</p>
+  </div>
+</div></div>
+</body></html>`;
 };
 
-/**
- * Generate payment successful email (includes receipt)
- * Sent when a payment is marked as completed.
- * @param {string} name - User's full name
- * @param {Object} payment - Payment document object
- * @returns {string} HTML email template
- */
 const generatePaymentSuccessEmail = (name, payment) => {
-  const completedAt = new Date(payment.completedAt || payment.updatedAt).toLocaleString('en-GB', {
-    day: '2-digit', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
-  });
-  const submittedAt = new Date(payment.submittedAt || payment.createdAt).toLocaleString('en-GB', {
-    day: '2-digit', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
-  });
-  const localAmountFormatted = Number(payment.localAmount).toLocaleString('en-NG', {
-    minimumFractionDigits: 2, maximumFractionDigits: 2
-  });
-
-  // Fee breakdown variables – read from saved payment fields
+  const completedAt = new Date(payment.completedAt || payment.updatedAt).toLocaleString('en-GB', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  const submittedAt = new Date(payment.submittedAt || payment.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  const localAmountFormatted = Number(payment.localAmount).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const chargedAmount = Number(payment.totalChargedAmount || payment.foreignAmount || 0);
   const feeAmount = Number(payment.processingFee || 0);
   const beneficiaryAmount = Number(payment.amountToBeneficiary || payment.foreignAmount || 0);
   const hasFee = feeAmount > 0;
-
   const fmt = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const cur = payment.foreignCurrency;
 
@@ -562,287 +483,145 @@ const generatePaymentSuccessEmail = (name, payment) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment Successful – Official Receipt – Reap by Kenluk</title>
+  <title>Payment Successful - Official Receipt - Kenluk</title>
   <style>${sharedStyles}
     .header { background: linear-gradient(135deg, #064e3b 0%, #065f46 60%, #047857 100%); color: #fff; }
     .status-badge { background: rgba(255,255,255,0.20); color: #fff; border: 1px solid rgba(255,255,255,0.35); }
     .amount-box { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border: 1px solid #6ee7b7; color: #064e3b; }
-    .receipt-strip {
-      background: linear-gradient(90deg, #064e3b 0%, #047857 100%);
-      color: #fff;
-      text-align: center;
-      padding: 12px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-    }
-    .checkmark {
-      width: 56px;
-      height: 56px;
-      background: rgba(255,255,255,0.18);
-      border-radius: 50%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      margin-bottom: 16px;
-    }
-    .fee-box {
-      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-      border: 1px solid #86efac;
-      border-radius: 12px;
-      padding: 20px 24px;
-      margin-bottom: 28px;
-    }
-    .fee-title {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: #15803d;
-      margin-bottom: 14px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #86efac;
-    }
-    .fee-row {
-      display: table;
-      width: 100%;
-      padding: 6px 0;
-      font-size: 13px;
-    }
+    .receipt-strip { background: linear-gradient(90deg, #064e3b 0%, #047857 100%); color: #fff; text-align: center; padding: 12px; font-size: 11px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; }
+    .fee-box { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac; border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; }
+    .fee-title { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #15803d; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid #86efac; }
+    .fee-row { display: table; width: 100%; padding: 6px 0; font-size: 13px; }
     .fee-label { display: table-cell; color: #555; }
     .fee-value { display: table-cell; font-weight: 700; color: #1a1a2e; text-align: right; }
     .fee-deduction .fee-value { color: #dc2626; }
-    .fee-total {
-      border-top: 2px solid #86efac;
-      margin-top: 8px;
-      padding-top: 10px !important;
-    }
+    .fee-total { border-top: 2px solid #86efac; margin-top: 8px; padding-top: 10px !important; }
     .fee-total .fee-label { font-weight: 700; color: #15803d; font-size: 14px; }
     .fee-total .fee-value { color: #15803d; font-size: 15px; }
   </style>
 </head>
 <body>
-<div class="wrapper">
-  <div class="container">
-    <div class="header">
-      <div class="brand">⚡ Reap by Kenluk</div>
-      <div class="checkmark">✅</div>
-      <h1>Payment Successful!</h1>
-      <p>Your international payment has been completed</p>
-      <div class="status-badge">✔ COMPLETED</div>
+<div class="wrapper"><div class="container">
+  <div class="header">
+    <div class="brand">Kenluk</div>
+    <h1>Payment Successful!</h1>
+    <p>Your international payment has been completed</p>
+    <div class="status-badge">COMPLETED</div>
+  </div>
+  <div class="receipt-strip">Official Payment Receipt</div>
+  <div class="body">
+    <p class="greeting">Hello, ${name}!</p>
+    <p class="intro-text">Great news! Your payment has been successfully processed and sent to the recipient. This email serves as your <strong>official payment receipt</strong>. Please save it for your records.</p>
+    <div class="receipt-id-box"><span class="receipt-id-label">Receipt / Transaction ID</span><span class="receipt-id-value">${payment._id}</span></div>
+    <div class="amount-box">
+      <div class="label">Amount Sent to Beneficiary</div>
+      <div class="amount">${cur} ${fmt(beneficiaryAmount)}</div>
+      <div class="sub">Debited: NGN ${localAmountFormatted} | Exchange Rate: NGN ${Number(payment.exchangeRate).toLocaleString()} per ${cur}</div>
     </div>
-
-    <!-- Official Receipt Strip -->
-    <div class="receipt-strip">🧾 &nbsp; Official Payment Receipt &nbsp; 🧾</div>
-
-    <div class="body">
-      <p class="greeting">Hello, ${name}!</p>
-      <p class="intro-text">
-        Great news! Your payment has been successfully processed and sent to the recipient via Reap Payments.
-        This email serves as your <strong>official payment receipt</strong>. Please save it for your records.
-      </p>
-
-      <!-- Receipt ID -->
-      <div class="receipt-id-box">
-        <span class="receipt-id-label">Receipt / Transaction ID</span>
-        <span class="receipt-id-value">${payment._id}</span>
-      </div>
-
-      <!-- Amount Sent -->
-      <div class="amount-box">
-        <div class="label">Amount Sent to Beneficiary</div>
-        <div class="amount">${cur} ${fmt(beneficiaryAmount)}</div>
-        <div class="sub">Debited: ₦${localAmountFormatted} &nbsp;·&nbsp; Exchange Rate: ₦${Number(payment.exchangeRate).toLocaleString()} per ${cur}</div>
-      </div>
-
-      ${hasFee ? `
-      <!-- Fee Breakdown -->
-      <div class="fee-box">
-        <div class="fee-title">💳 Payment Fee Breakdown</div>
-        <div class="fee-row">
-          <span class="fee-label">Amount Initiated</span>
-          <span class="fee-value">${cur} ${fmt(chargedAmount)}</span>
-        </div>
-        <div class="fee-row fee-deduction">
-          <span class="fee-label">Processing Fee</span>
-          <span class="fee-value">− ${cur} ${fmt(feeAmount)}</span>
-        </div>
-        <div class="fee-row fee-total">
-          <span class="fee-label">Beneficiary Received</span>
-          <span class="fee-value">${cur} ${fmt(beneficiaryAmount)}</span>
-        </div>
-      </div>
-      ` : ''}
-
-      <!-- Recipient Information -->
-      <div class="section-label">Recipient Information</div>
-      <table class="info-table">
-        <tr><td>Sender Name</td><td>${name}</td></tr>
-        <tr><td>Beneficiary Name</td><td>${payment.recipientCompany}</td></tr>
-        <tr><td>Account Number</td><td>${payment.accountNumber}</td></tr>
-        <tr><td>Bank Name</td><td>${payment.recipientBank}</td></tr>
-        <tr><td>SWIFT / BIC Code</td><td>${payment.recipientBankSwiftCode}</td></tr>
-        <tr><td>Bank Country</td><td>${payment.recipientBankCountry}</td></tr>
-      </table>
-
-      <!-- Transaction Details -->
-      <div class="section-label">Transaction Details</div>
-      <table class="info-table">
-        <tr><td>Amount Initiated</td><td>${cur} ${fmt(chargedAmount)}</td></tr>
-        ${hasFee ? `<tr><td>Processing Fee</td><td style="color:#dc2626;">− ${cur} ${fmt(feeAmount)}</td></tr>` : ''}
-        <tr><td>Amount To Beneficiary</td><td style="color:#065f46; font-weight:700;">${cur} ${fmt(beneficiaryAmount)}</td></tr>
-        <tr><td>Naira Equivalent</td><td>₦${localAmountFormatted}</td></tr>
-        <tr><td>Exchange Rate</td><td>₦${Number(payment.exchangeRate).toLocaleString()} / ${cur}</td></tr>
-        <tr><td>Invoice File</td><td>${payment.invoiceOriginalFileName || payment.invoiceFileName || 'N/A'}</td></tr>
-        <tr><td>Submitted At</td><td>${submittedAt}</td></tr>
-        <tr><td>Completed At</td><td>${completedAt}</td></tr>
-        <tr><td>Status</td><td>✅ Completed</td></tr>
-      </table>
-
-      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:16px 18px; font-size:13px; line-height:1.6; color:#14532d;">
-        🎉 <strong>Payment Delivered!</strong> Funds have been successfully dispatched to the recipient's bank account via the Reap Payments network. If the recipient has not received the funds within 2–3 business days, please contact us immediately.
-      </div>
-    </div>
-
-    <div class="footer">
-      <p><strong>Keep this email as your official payment receipt.</strong></p>
-      <p style="margin-top: 8px;">© ${new Date().getFullYear()} Kenluk &nbsp;|&nbsp; <a href="mailto:Info@kenluk.com">Info@kenluk.com</a> &nbsp;|&nbsp; +234 708 832 9998</p>
-      <p style="margin-top: 6px;">Powered by Reap Payments &nbsp;·&nbsp; This is an automated notification. Please do not reply.</p>
+    ${hasFee ? `<div class="fee-box">
+      <div class="fee-title">Payment Fee Breakdown</div>
+      <div class="fee-row"><span class="fee-label">Amount Initiated</span><span class="fee-value">${cur} ${fmt(chargedAmount)}</span></div>
+      <div class="fee-row fee-deduction"><span class="fee-label">Processing Fee</span><span class="fee-value">- ${cur} ${fmt(feeAmount)}</span></div>
+      <div class="fee-row fee-total"><span class="fee-label">Beneficiary Received</span><span class="fee-value">${cur} ${fmt(beneficiaryAmount)}</span></div>
+    </div>` : ''}
+    <div class="section-label">Recipient Information</div>
+    <table class="info-table">
+      <tr><td>Sender Name</td><td>${name}</td></tr>
+      <tr><td>Beneficiary Name</td><td>${payment.recipientCompany}</td></tr>
+      <tr><td>Account Number</td><td>${payment.accountNumber}</td></tr>
+      <tr><td>Bank Name</td><td>${payment.recipientBank}</td></tr>
+      <tr><td>SWIFT / BIC Code</td><td>${payment.recipientBankSwiftCode}</td></tr>
+      <tr><td>Bank Country</td><td>${payment.recipientBankCountry}</td></tr>
+    </table>
+    <div class="section-label">Transaction Details</div>
+    <table class="info-table">
+      <tr><td>Amount Initiated</td><td>${cur} ${fmt(chargedAmount)}</td></tr>
+      ${hasFee ? `<tr><td>Processing Fee</td><td style="color:#dc2626;">- ${cur} ${fmt(feeAmount)}</td></tr>` : ''}
+      <tr><td>Amount To Beneficiary</td><td style="color:#065f46; font-weight:700;">${cur} ${fmt(beneficiaryAmount)}</td></tr>
+      <tr><td>Naira Equivalent</td><td>NGN ${localAmountFormatted}</td></tr>
+      <tr><td>Exchange Rate</td><td>NGN ${Number(payment.exchangeRate).toLocaleString()} / ${cur}</td></tr>
+      <tr><td>Submitted At</td><td>${submittedAt}</td></tr>
+      <tr><td>Completed At</td><td>${completedAt}</td></tr>
+      <tr><td>Status</td><td>Completed</td></tr>
+    </table>
+    <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:16px 18px; font-size:13px; line-height:1.6; color:#14532d;">
+      <strong>Payment Delivered!</strong> Funds have been successfully dispatched to the recipient's bank account. If the recipient has not received the funds within 2-3 business days, please contact us immediately.
     </div>
   </div>
-</div>
-</body>
-</html>`;
+  <div class="footer">
+    <p><strong>Keep this email as your official payment receipt.</strong></p>
+    <p style="margin-top: 8px;">Copyright ${new Date().getFullYear()} Kenluk | Info@kenluk.com | +234 708 832 9998</p>
+    <p style="margin-top: 6px;">This is an automated notification. Please do not reply.</p>
+  </div>
+</div></div>
+</body></html>`;
 };
 
-/**
- * Generate payment failed / rejected email
- * Sent when a payment fails at any stage (rejected, Reap API failure, or webhook failure).
- * @param {string} name - User's full name
- * @param {Object} payment - Payment document object
- * @param {string} [reason] - Optional specific failure/rejection reason override
- * @returns {string} HTML email template
- */
 const generatePaymentFailedEmail = (name, payment, reason) => {
-  const failedAt = new Date(payment.updatedAt || new Date()).toLocaleString('en-GB', {
-    day: '2-digit', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
-  });
-  const submittedAt = new Date(payment.submittedAt || payment.createdAt).toLocaleString('en-GB', {
-    day: '2-digit', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
-  });
-  const localAmountFormatted = Number(payment.localAmount).toLocaleString('en-NG', {
-    minimumFractionDigits: 2, maximumFractionDigits: 2
-  });
-  const foreignAmountFormatted = Number(payment.foreignAmount).toLocaleString('en-US', {
-    minimumFractionDigits: 2, maximumFractionDigits: 2
-  });
-
-  // Determine the failure reason to display
-  const failureReason = reason ||
-    payment.rejectionReason ||
-    payment.reapErrorMessage ||
-    'An unexpected error occurred during payment processing. Please try again or contact support.';
-
+  const failedAt = new Date(payment.updatedAt || new Date()).toLocaleString('en-GB', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  const submittedAt = new Date(payment.submittedAt || payment.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  const localAmountFormatted = Number(payment.localAmount).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const foreignAmountFormatted = Number(payment.foreignAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const failureReason = reason || payment.rejectionReason || payment.reapErrorMessage || 'An unexpected error occurred during payment processing. Please try again or contact support.';
   const isRejected = payment.status === 'rejected';
-  const statusLabel = isRejected ? '✖ REJECTED BY ADMIN' : '✖ PAYMENT FAILED';
+  const statusLabel = isRejected ? 'REJECTED BY ADMIN' : 'PAYMENT FAILED';
   const headerTitle = isRejected ? 'Payment Request Rejected' : 'Payment Failed';
-  const headerSubtitle = isRejected
-    ? 'Your payment request was not approved by our team'
-    : 'Something went wrong while processing your payment';
+  const headerSubtitle = isRejected ? 'Your payment request was not approved by our team' : 'Something went wrong while processing your payment';
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment ${isRejected ? 'Rejected' : 'Failed'} – Reap by Kenluk</title>
+  <title>Payment ${isRejected ? 'Rejected' : 'Failed'} - Kenluk</title>
   <style>${sharedStyles}
     .header { background: linear-gradient(135deg, #450a0a 0%, #7f1d1d 60%, #991b1b 100%); color: #fff; }
     .status-badge { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
     .amount-box { background: linear-gradient(135deg, #fff5f5 0%, #fee2e2 100%); border: 1px solid #fca5a5; color: #7f1d1d; }
-    .reason-box {
-      background: #fff1f2;
-      border-left: 4px solid #e11d48;
-      border-radius: 0 10px 10px 0;
-      padding: 16px 18px;
-      margin-bottom: 28px;
-      font-size: 14px;
-      line-height: 1.7;
-      color: #881337;
-    }
+    .reason-box { background: #fff1f2; border-left: 4px solid #e11d48; border-radius: 0 10px 10px 0; padding: 16px 18px; margin-bottom: 28px; font-size: 14px; line-height: 1.7; color: #881337; }
     .reason-box strong { display: block; margin-bottom: 6px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: #e11d48; }
   </style>
 </head>
 <body>
-<div class="wrapper">
-  <div class="container">
-    <div class="header">
-      <div class="brand">⚡ Reap by Kenluk</div>
-      <h1>${headerTitle}</h1>
-      <p>${headerSubtitle}</p>
-      <div class="status-badge">${statusLabel}</div>
+<div class="wrapper"><div class="container">
+  <div class="header">
+    <div class="brand">Kenluk</div>
+    <h1>${headerTitle}</h1>
+    <p>${headerSubtitle}</p>
+    <div class="status-badge">${statusLabel}</div>
+  </div>
+  <div class="body">
+    <p class="greeting">Hello, ${name},</p>
+    <p class="intro-text">We regret to inform you that your payment request could not be completed. Please review the reason below and feel free to submit a new request or contact our support team for assistance.</p>
+    <div class="receipt-id-box"><span class="receipt-id-label">Transaction Ref</span><span class="receipt-id-value">${payment._id}</span></div>
+    <div class="reason-box"><strong>${isRejected ? 'Rejection Reason' : 'Failure Reason'}</strong>${failureReason}</div>
+    <div class="amount-box">
+      <div class="label">Attempted Payment Amount</div>
+      <div class="amount">${payment.foreignCurrency} ${foreignAmountFormatted}</div>
+      <div class="sub">Equivalent to NGN ${localAmountFormatted}</div>
     </div>
-
-    <div class="body">
-      <p class="greeting">Hello, ${name},</p>
-      <p class="intro-text">
-        We regret to inform you that your payment request could not be completed.
-        Please review the reason below and feel free to submit a new request or contact our support team for assistance.
-      </p>
-
-      <!-- Receipt ID -->
-      <div class="receipt-id-box">
-        <span class="receipt-id-label">Transaction Ref</span>
-        <span class="receipt-id-value">${payment._id}</span>
-      </div>
-
-      <!-- Failure Reason -->
-      <div class="reason-box">
-        <strong>${isRejected ? 'Rejection Reason' : 'Failure Reason'}</strong>
-        ${failureReason}
-      </div>
-
-      <!-- Amount -->
-      <div class="amount-box">
-        <div class="label">Attempted Payment Amount</div>
-        <div class="amount">${payment.foreignCurrency} ${foreignAmountFormatted}</div>
-        <div class="sub">Equivalent to ₦${localAmountFormatted}</div>
-      </div>
-
-      <!-- Payment Details -->
-      <div class="section-label">Payment Details</div>
-      <table class="info-table">
-        <tr><td>Recipient</td><td>${payment.recipientCompany}</td></tr>
-        <tr><td>Bank Name</td><td>${payment.recipientBank}</td></tr>
-        <tr><td>Account Number</td><td>${payment.accountNumber}</td></tr>
-        <tr><td>SWIFT / BIC</td><td>${payment.recipientBankSwiftCode}</td></tr>
-        <tr><td>Submitted At</td><td>${submittedAt}</td></tr>
-        <tr><td>${isRejected ? 'Rejected At' : 'Failed At'}</td><td>${failedAt}</td></tr>
-        <tr><td>Status</td><td>${isRejected ? '✖ Rejected' : '✖ Failed'}</td></tr>
-      </table>
-
-      <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:16px 18px; font-size:13px; line-height:1.6; color:#374151;">
-        💡 <strong>What to do next:</strong><br>
-        ${isRejected
-          ? 'If you believe this rejection was made in error or you\'d like to provide additional documentation, please contact our support team at <a href="mailto:Info@kenluk.com" style="color:#1d4ed8;">Info@kenluk.com</a> or call +234 708 832 9998.'
-          : 'Your funds have <strong>not been debited</strong>. You can try submitting a new payment request. If the issue persists, please contact us at <a href="mailto:Info@kenluk.com" style="color:#1d4ed8;">Info@kenluk.com</a> or call +234 708 832 9998.'
-        }
-      </div>
-    </div>
-
-    <div class="footer">
-      <p>We apologize for any inconvenience this may have caused.</p>
-      <p style="margin-top: 8px;">© ${new Date().getFullYear()} Kenluk &nbsp;|&nbsp; <a href="mailto:Info@kenluk.com">Info@kenluk.com</a> &nbsp;|&nbsp; +234 708 832 9998</p>
-      <p style="margin-top: 6px;">Powered by Reap Payments &nbsp;·&nbsp; This is an automated notification. Please do not reply.</p>
+    <div class="section-label">Payment Details</div>
+    <table class="info-table">
+      <tr><td>Recipient</td><td>${payment.recipientCompany}</td></tr>
+      <tr><td>Bank Name</td><td>${payment.recipientBank}</td></tr>
+      <tr><td>Account Number</td><td>${payment.accountNumber}</td></tr>
+      <tr><td>SWIFT / BIC</td><td>${payment.recipientBankSwiftCode}</td></tr>
+      <tr><td>Submitted At</td><td>${submittedAt}</td></tr>
+      <tr><td>${isRejected ? 'Rejected At' : 'Failed At'}</td><td>${failedAt}</td></tr>
+      <tr><td>Status</td><td>${isRejected ? 'Rejected' : 'Failed'}</td></tr>
+    </table>
+    <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:16px 18px; font-size:13px; line-height:1.6; color:#374151;">
+      <strong>What to do next:</strong><br>
+      ${isRejected ? 'If you believe this rejection was made in error or you would like to provide additional documentation, please contact our support team at Info@kenluk.com or call +234 708 832 9998.' : 'Your funds have not been debited. You can try submitting a new payment request. If the issue persists, please contact us at Info@kenluk.com or call +234 708 832 9998.'}
     </div>
   </div>
-</div>
-</body>
-</html>`;
+  <div class="footer">
+    <p>We apologize for any inconvenience this may have caused.</p>
+    <p style="margin-top: 8px;">Copyright ${new Date().getFullYear()} Kenluk | Info@kenluk.com | +234 708 832 9998</p>
+    <p style="margin-top: 6px;">This is an automated notification. Please do not reply.</p>
+  </div>
+</div></div>
+</body></html>`;
 };
 
 export {
