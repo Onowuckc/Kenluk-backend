@@ -1,4 +1,5 @@
 import Beneficiary from '../models/Beneficiary.js';
+import { validateSwiftCountry } from '../utils/countryUtils.js';
 
 const getMyBeneficiaries = async (req, res) => {
   try {
@@ -49,6 +50,22 @@ const createOrUpdateBeneficiary = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Missing required fields: ${missing.join(', ')}`
+      });
+    }
+    
+    const swiftCode = recipientBankSwiftCode.trim();
+    const swiftRegex = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
+    if (!swiftRegex.test(swiftCode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid SWIFT code format'
+      });
+    }
+
+    if (!validateSwiftCountry(swiftCode, recipientBankCountry)) {
+      return res.status(400).json({
+        success: false,
+        message: 'SWIFT code country code must match the recipient bank country'
       });
     }
 
