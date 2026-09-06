@@ -29,6 +29,7 @@ import fidelityPaymentRoutes from './routes/fidelityPaymentRoutes.js';
 import beneficiaryRoutes from './routes/beneficiaries.js';
 import logsRoutes from './routes/logs.js';
 import contactRoutes from './routes/contact.js';
+import ohmyfinRoutes from './routes/ohmyfin.routes.js';
 import { subscribeReapWebhooks } from './utils/reapWebhookSubscription.js';
 
 // Import middleware
