@@ -122,9 +122,33 @@ const paymentSchema = new mongoose.Schema({
   // Status and approval
   status: {
     type: String,
-    enum: ['pending_admin_approval', 'approved', 'rejected', 'submitted_to_reap', 'processing', 'completed', 'failed'],
+    enum: ['pending_admin_approval', 'compliance_hold', 'approved', 'rejected', 'submitted_to_reap', 'processing', 'completed', 'failed'],
     default: 'pending_admin_approval',
     index: true
+  },
+  // OhMyFinAI Compliance & Audit Certificate fields
+  complianceReportId: {
+    type: String,
+    default: ''
+  },
+  complianceReportHash: {
+    type: String,
+    default: ''
+  },
+  complianceAction: {
+    type: String,
+    enum: ['CLEAR', 'INFORM', 'REVIEW', 'BLOCK', 'ERROR', 'UNCHECKED'],
+    default: 'UNCHECKED'
+  },
+  complianceAuditNote: {
+    type: String,
+    default: ''
+  },
+  complianceScreenedAt: {
+    type: Date
+  },
+  manualFxRate: {
+    type: Number
   },
   rejectionReason: {
     type: String,

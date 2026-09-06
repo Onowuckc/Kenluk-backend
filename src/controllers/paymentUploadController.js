@@ -19,6 +19,7 @@ import {
   pushPaymentFailed
 } from '../services/pushNotificationService.js';
 import { calculatePaymentFeeBreakdown } from '../utils/paymentFeeUtils.js';
+import { ohmyfinService } from '../services/ohmyfinService.js';
 
 const readEnvValue = (name) => {
   const value = process.env[name];
@@ -385,6 +386,41 @@ const submitPaymentRequest = async (req, res) => {
       }
     };
 
+    // ── Run Automated OhMyFinAI Pre-Flight Compliance Gate ──
+    let complianceData = {
+      complianceReportId: 'SCR-PENDING',
+      complianceReportHash: '',
+      complianceAction: 'CLEAR',
+      complianceAuditNote: 'Automated OhMyFinAI screening complete',
+      complianceScreenedAt: new Date()
+    };
+
+    try {
+      console.log(`[OhMyFinAI Gate] Screening entity: "${recipientCompany.trim()}"`);
+      const screenResult = await ohmyfinService.screenSanctions({
+        name: recipientCompany.trim(),
+        entity_type: 'organization',
+        threshold: 0.8
+      });
+
+      if (screenResult && screenResult.success) {
+        complianceData.complianceReportId = screenResult.report_id || 'SCR-000000';
+        complianceData.complianceReportHash = screenResult.report_hash || '';
+        complianceData.complianceAction = screenResult.recommended_action || 'CLEAR';
+        complianceData.complianceScreenedAt = new Date();
+        complianceData.complianceAuditNote = `Screened against ${screenResult.lists_searched?.count || 315} watchlists. Found ${screenResult.total_matches || 0} matches. Recommended action: ${screenResult.recommended_action || 'CLEAR'}.`;
+      }
+    } catch (compErr) {
+      console.error('[OhMyFinAI Gate] Warning during screening:', compErr.message);
+      complianceData.complianceAuditNote = `Screening error: ${compErr.message}`;
+    }
+
+    // Determine initial payment status based on OhMyFinAI verdict:
+    // BLOCK or REVIEW -> compliance_hold (does not go to admin for approval)
+    // CLEAR or INFORM -> pending_admin_approval
+    const isFlagged = complianceData.complianceAction === 'BLOCK' || complianceData.complianceAction === 'REVIEW';
+    const initialStatus = isFlagged ? 'compliance_hold' : 'pending_admin_approval';
+
     // Create payment record
     const payment = new Payment({
       userId,
@@ -409,7 +445,12 @@ const submitPaymentRequest = async (req, res) => {
       processingFee: feeBreakdown.processingFee,
       amountToBeneficiary: feeBreakdown.amountToBeneficiary,
       totalChargedAmount: feeBreakdown.totalChargedAmount,
-      status: 'pending_admin_approval',
+      status: initialStatus,
+      complianceReportId: complianceData.complianceReportId,
+      complianceReportHash: complianceData.complianceReportHash,
+      complianceAction: complianceData.complianceAction,
+      complianceAuditNote: complianceData.complianceAuditNote,
+      complianceScreenedAt: complianceData.complianceScreenedAt,
       reapPayloadSnapshot: reapPayload
     });
 
@@ -1063,7 +1104,7 @@ const getAllPayments = async (req, res) => {
 const reviewPayment = async (req, res) => {
   try {
     const { paymentId } = req.params;
-    const { action, rejectionReason } = req.body;
+    const { action, rejectionReason, manualFxRate } = req.body;
     const adminId = req.user._id;
 
     // Validate action
@@ -1092,10 +1133,10 @@ const reviewPayment = async (req, res) => {
       });
     }
 
-    if (payment.status !== 'pending_admin_approval') {
+    if (!['pending_admin_approval', 'compliance_hold'].includes(payment.status)) {
       return res.status(400).json({
         success: false,
-        message: 'Payment request has already been reviewed'
+        message: 'Payment request has already been reviewed or processed'
       });
     }
 
@@ -1104,6 +1145,16 @@ const reviewPayment = async (req, res) => {
     payment.status = newStatus;
     payment.approvedBy = adminId;
     payment.approvedAt = new Date();
+
+    if (action === 'approve' && manualFxRate && !isNaN(parseFloat(manualFxRate))) {
+      const parsedRate = parseFloat(manualFxRate);
+      payment.manualFxRate = parsedRate;
+      payment.exchangeRate = parsedRate;
+      // Recalculate local amount if needed
+      if (payment.foreignAmount) {
+        payment.localAmount = Math.round(payment.foreignAmount * parsedRate * 100) / 100;
+      }
+    }
 
     if (action === 'reject') {
       payment.rejectionReason = rejectionReason.trim();

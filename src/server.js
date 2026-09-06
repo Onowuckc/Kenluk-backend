@@ -99,6 +99,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/beneficiaries', beneficiaryRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/v4/ohmyfin', ohmyfinRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
